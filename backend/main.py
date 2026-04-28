@@ -24,8 +24,10 @@ app.add_middleware(
 )
 
 from routers.stocks import router as stocks_router
+from routers.strategies import router as strategies_router
 
 app.include_router(stocks_router)
+app.include_router(strategies_router)
 
 
 @app.get("/api/health")
