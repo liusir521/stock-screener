@@ -59,7 +59,7 @@ def seed() -> dict:
                     revenue_growth_3y=row["revenue_growth_3y"],
                     ma5=row["ma5"], ma20=row["ma20"], ma60=row["ma60"],
                     macd_signal=row["macd_signal"], market_cap=row["market_cap"],
-                    nmc=row["nmc"],
+                    nmc=row["nmc"], float_shares=row["float_shares"],
                     dividend_yield=row["dividend_yield"],
                 ))
                 daily_count += 1

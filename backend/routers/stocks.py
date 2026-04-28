@@ -64,23 +64,22 @@ def stock_detail(code: str):
             df = pd.read_sql_query(query, conn, params={"code": code})
         daily_data = df.where(df.notna(), None).to_dict(orient="records")
 
-    # Enrich with turnover_rate if missing (compute from volume, close, and nmc from DB)
-    if daily_data and 'turnover_rate' not in daily_data[0]:
-        nmc = 0
+    # Enrich with turnover_rate if missing (compute using float_shares from DB)
+    if daily_data and 'turnover_rate' not in daily_data[0] and 'float_shares' not in daily_data[0]:
+        float_shares = 0
         try:
-            nmc_query = "SELECT nmc FROM stock_daily WHERE code = :code"
+            fs_query = "SELECT float_shares FROM stock_daily WHERE code = :code"
             with engine.connect() as conn:
-                row = conn.execute(text(nmc_query), {"code": code}).fetchone()
+                row = conn.execute(text(fs_query), {"code": code}).fetchone()
                 if row:
-                    nmc = float(row[0] or 0)
+                    float_shares = float(row[0] or 0)
         except Exception:
             pass
-        if nmc > 0:
+        if float_shares > 0:
             for d in daily_data:
                 vol = float(d.get("volume") or 0)
-                cls = float(d.get("close") or 0)
-                # turnover_rate = volume(手) * close_price(元) / (nmc(万元) * 100)
-                d["turnover_rate"] = round(vol * cls / (nmc * 100), 2)
+                # turnover_rate(%) = volume(手) * 100 / float_shares(股)
+                d["turnover_rate"] = round(vol * 100 / float_shares, 2)
 
     return {
         "basic": basic.to_dict(orient="records")[0] if len(basic) > 0 else None,

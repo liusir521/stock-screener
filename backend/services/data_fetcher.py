@@ -85,6 +85,7 @@ def fetch_all_sina_data() -> pd.DataFrame:
             "pb": float(item.get("pb", 0) or 0),
             "market_cap": float(item.get("mktcap", 0) or 0) / 1e4,  # 万元 -> 亿
             "nmc": float(item.get("nmc", 0) or 0),  # 流通市值(万元)
+            "float_shares": 0,  # computed below
             "roe": 0,
             "revenue_growth_3y": 0,
             "ma5": 0,
@@ -94,7 +95,11 @@ def fetch_all_sina_data() -> pd.DataFrame:
             "dividend_yield": 0,
         })
 
-    return pd.DataFrame(records)
+    df = pd.DataFrame(records)
+    # Compute circulating shares: float_shares = nmc(万元) * 10000 / close(元)
+    mask = (df["close"] > 0) & (df["nmc"] > 0)
+    df.loc[mask, "float_shares"] = df.loc[mask, "nmc"] * 10000 / df.loc[mask, "close"]
+    return df
 
 
 def fetch_stock_list() -> pd.DataFrame:
