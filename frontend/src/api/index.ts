@@ -30,4 +30,5 @@ export const api = {
   getStrategies: () => get<{ strategies: { name: string; filters: Record<string, string> }[] }>(`${BASE}/strategies`),
   saveStrategy: (name: string, filters: Record<string, string>) =>
     post<{ status: string }>(`${BASE}/strategies`, { name, filters }),
+  refreshData: () => post<{ status: string; basic_count?: number; daily_count?: number; reason?: string; message?: string }>(`${BASE}/refresh`, {}),
 }

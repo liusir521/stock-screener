@@ -79,3 +79,21 @@ def list_markets():
             {"key": "bse", "label": "北交所"},
         ]
     }
+
+
+@router.post("/refresh")
+async def refresh_data():
+    """Trigger a manual data refresh from Sina API."""
+    import asyncio
+    from seed_data import seed, get_refresh_status
+    status = get_refresh_status()
+    if status["running"]:
+        return {"status": "running", "message": "数据刷新进行中，请稍后再试"}
+    result = await asyncio.to_thread(seed)
+    return result
+
+
+@router.get("/refresh/status")
+def refresh_status():
+    from seed_data import get_refresh_status
+    return get_refresh_status()

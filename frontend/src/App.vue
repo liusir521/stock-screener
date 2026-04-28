@@ -81,6 +81,27 @@ function handleSortChange(field: string) {
   handleSearch(params)
 }
 
+const refreshing = ref(false)
+
+async function handleRefresh() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    const result = await api.refreshData()
+    if (result.status === 'ok') {
+      handleSearch({})
+    } else if (result.status === 'running') {
+      alert(result.message || '数据刷新正在进行中，请稍后再试')
+    } else {
+      alert(result.reason || '刷新失败')
+    }
+  } catch (e) {
+    alert('刷新请求失败，请检查后端是否运行')
+  } finally {
+    refreshing.value = false
+  }
+}
+
 function handleRowClick(code: string) {
   selectedCode.value = code
 }
@@ -92,9 +113,14 @@ function handleRowClick(code: string) {
     <main class="main-content">
       <div class="top-bar">
         <span class="app-title">A股筛选器</span>
-        <button class="theme-toggle" @click="toggleTheme">
-          {{ isDark ? '☀️ 明' : '🌙 暗' }}
-        </button>
+        <div class="top-bar-actions">
+          <button class="refresh-btn" :disabled="refreshing" @click="handleRefresh">
+            {{ refreshing ? '刷新中...' : '刷新数据' }}
+          </button>
+          <button class="theme-toggle" @click="toggleTheme">
+            {{ isDark ? '☀️ 明' : '🌙 暗' }}
+          </button>
+        </div>
       </div>
       <StockTable
         :items="items" :total="total" :loading="loading"
@@ -147,6 +173,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   padding: 10px 20px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
 }
 .app-title { font-size: 16px; font-weight: 700; }
+.top-bar-actions { display: flex; gap: 8px; align-items: center; }
+.refresh-btn {
+  padding: 4px 12px; border: 1px solid var(--accent); border-radius: 4px;
+  background: var(--accent-light); color: var(--accent); font-size: 12px; cursor: pointer;
+}
+.refresh-btn:hover { background: var(--accent); color: white; }
+.refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .theme-toggle {
   padding: 4px 12px; border: 1px solid var(--border-strong); border-radius: 4px;
   background: var(--bg-surface); color: var(--text-secondary); font-size: 12px; cursor: pointer;
