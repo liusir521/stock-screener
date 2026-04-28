@@ -7,7 +7,7 @@ Personal A-share stock screening tool. Filter stocks by fundamental and technica
 ### Backend
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 python seed_data.py        # Fetch data from akshare (~60s first run)
 uvicorn main:app --reload  # API at http://localhost:8000
 ```

@@ -38,8 +38,8 @@ function handleSearch() {
   addRange('market_cap', fundamental.market_cap, [0, 5000])
   addRange('dividend_yield', fundamental.dividend_yield, [0, 10])
 
-  params.sort_by = 'pe_ttm'
-  params.order = 'asc'
+  params.sort_by = currentFilters.value.sort_by || 'pe_ttm'
+  params.order = currentFilters.value.order || 'asc'
   params.page = '1'
   params.page_size = '50'
 

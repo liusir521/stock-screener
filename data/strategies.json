@@ -1,6 +1,6 @@
 [
   {
-    "name": "��ROE�ɳ���",
+    "name": "高ROE成长股",
     "filters": {
       "roe_min": 15,
       "revenue_growth_min": 20,
@@ -10,7 +10,7 @@
     }
   },
   {
-    "name": "�͹�ֵ����",
+    "name": "低估值蓝筹",
     "filters": {
       "pe_max": 15,
       "pb_max": 1.5,
@@ -21,7 +21,7 @@
     }
   },
   {
-    "name": "���߶�ͷ����",
+    "name": "均线多头排列",
     "filters": {
       "exclude_st": true,
       "sort_by": "market_cap",
@@ -29,18 +29,11 @@
     }
   },
   {
-    "name": "�¸߸���",
+    "name": "新高附近",
     "filters": {
       "exclude_st": true,
       "sort_by": "close",
       "order": "desc"
-    }
-  },
-  {
-    "name": "test",
-    "filters": {
-      "pe_min": 5,
-      "pe_max": 15
     }
   }
 ]
