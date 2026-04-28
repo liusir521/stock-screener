@@ -1,32 +1,32 @@
-# Stock Screener
+# 股票筛选器
 
-Personal A-share stock screening tool. Filter stocks by fundamental and technical indicators.
+A 股个人选股工具，支持按基本面和技术面指标多条件筛选。
 
-## Quick Start
+## 快速开始
 
-### Backend
+### 后端
 ```bash
 cd backend
 pip install -r ../requirements.txt
-python seed_data.py        # Fetch data from akshare (~60s first run)
-uvicorn main:app --reload  # API at http://localhost:8000
+python seed_data.py          # 从 akshare 拉取数据（首次约 60 秒）
+uvicorn main:app --reload    # API 运行在 http://localhost:8000
 ```
 
-### Frontend
+### 前端
 ```bash
 cd frontend
 npm install
-npm run dev                # UI at http://localhost:5173
+npm run dev                  # 界面运行在 http://localhost:5173
 ```
 
-## Tech Stack
-- Backend: Python 3.11+, FastAPI, SQLAlchemy, pandas, akshare
-- Frontend: Vue 3 (Composition API), TypeScript, Vite
-- Database: SQLite
+## 技术栈
+- 后端：Python 3.11+, FastAPI, SQLAlchemy, pandas, akshare
+- 前端：Vue 3 (Composition API), TypeScript, Vite
+- 数据库：SQLite
 
-## Features
-- Multi-condition stock screening (PE, PB, ROE, market cap, dividend yield, turnover)
-- Result table with sorting and pagination
-- Stock detail drawer
-- Strategy template save/load
-- CSV export
+## 功能
+- 多条件选股（PE、PB、ROE、市值、股息率、换手率等）
+- 结果表格支持排序和分页
+- 股票详情抽屉
+- 策略模板保存/加载
+- CSV 导出
