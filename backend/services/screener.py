@@ -10,7 +10,7 @@ def get_all_stocks_df() -> pd.DataFrame:
                d.close, d.volume, d.turnover_rate,
                d.pe_ttm, d.pb, d.roe, d.revenue_growth_3y,
                d.ma5, d.ma20, d.ma60, d.macd_signal,
-               d.market_cap, d.dividend_yield
+               d.market_cap, d.dividend_yield, d.change_pct, d.volume_ratio
         FROM stock_basic b
         LEFT JOIN stock_daily d ON b.code = d.code
     """
@@ -70,8 +70,25 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         result = result[result["dividend_yield"] >= filters["dividend_yield_min"]]
 
     # Revenue growth
-    if filters.get("revenue_growth_min") is not None:
-        result = result[result["revenue_growth_3y"] >= filters["revenue_growth_min"]]
+    rev_min = filters.get("revenue_growth_min")
+    rev_max = filters.get("revenue_growth_max")
+    if rev_min is not None:
+        result = result[result["revenue_growth_3y"] >= rev_min]
+    if rev_max is not None:
+        result = result[result["revenue_growth_3y"] <= rev_max]
+
+    # Price change
+    chg_min = filters.get("change_pct_min")
+    chg_max = filters.get("change_pct_max")
+    if chg_min is not None:
+        result = result[result["change_pct"] >= chg_min]
+    if chg_max is not None:
+        result = result[result["change_pct"] <= chg_max]
+
+    # Volume ratio
+    vol_min = filters.get("volume_ratio_min")
+    if vol_min is not None:
+        result = result[result["volume_ratio"] >= vol_min]
 
     # Sort
     sort_by = filters.get("sort_by", "code")

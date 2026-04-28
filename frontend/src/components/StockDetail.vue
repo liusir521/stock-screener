@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
-import { createChart, CandlestickSeries, HistogramSeries, type IChartApi } from 'lightweight-charts'
+import { ref, watch, nextTick, onBeforeUnmount, onMounted } from 'vue'
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries, type IChartApi, type ISeriesApi, CrosshairMode } from 'lightweight-charts'
 import { api } from '../api'
 
 const props = defineProps<{ code: string | null }>()
@@ -9,13 +9,37 @@ const emit = defineEmits<{ close: [] }>()
 const detail = ref<{ basic: Record<string, unknown> | null; daily: Record<string, unknown>[] }>({ basic: null, daily: [] })
 const loading = ref(false)
 
+let themeObserver: MutationObserver | null = null
+
+onMounted(() => {
+  themeObserver = new MutationObserver(() => {
+    if (chart) updateChartTheme()
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+
+onBeforeUnmount(() => {
+  destroyChart()
+  if (themeObserver) { themeObserver.disconnect(); themeObserver = null }
+})
+
 watch(() => props.code, async (newCode) => {
   destroyChart()
   if (!newCode) { detail.value = { basic: null, daily: [] }; return }
   loading.value = true
   try {
     const data = await api.getStockDetail(newCode) as { basic: Record<string, unknown> | null; daily: Record<string, unknown>[] }
-    // Show newest data first in table (API returns chronological order)
+    // Compute change_pct for each day (API returns chronological order, oldest first)
+    for (let i = 0; i < data.daily.length; i++) {
+      const todayClose = Number(data.daily[i].close)
+      const prevClose = i > 0 ? Number(data.daily[i - 1].close) : Number(data.daily[i].open)
+      if (prevClose && prevClose > 0) {
+        ;(data.daily[i] as Record<string, unknown>).change_pct = ((todayClose - prevClose) / prevClose) * 100
+      } else {
+        ;(data.daily[i] as Record<string, unknown>).change_pct = 0
+      }
+    }
+    // Show newest data first in table
     data.daily = data.daily.reverse()
     detail.value = data
   } finally {
@@ -25,8 +49,7 @@ watch(() => props.code, async (newCode) => {
 
 const chartContainer = ref<HTMLDivElement>()
 let chart: IChartApi | null = null
-
-onBeforeUnmount(() => destroyChart())
+const maLastValues = ref<{ ma5: string; ma20: string; ma60: string }>({ ma5: '-', ma20: '-', ma60: '-' })
 
 function destroyChart() {
   if (chart) { chart.remove(); chart = null }
@@ -47,6 +70,17 @@ function chartColors() {
   }
 }
 
+function updateChartTheme() {
+  if (!chart) return
+  const colors = chartColors()
+  chart.applyOptions({
+    layout: { background: { color: colors.bg }, textColor: colors.text },
+    grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
+    timeScale: { borderColor: colors.grid },
+    leftPriceScale: { borderColor: colors.grid },
+  })
+}
+
 watch(() => detail.value.daily, async (daily) => {
   destroyChart()
   if (!daily.length) return
@@ -60,7 +94,7 @@ watch(() => detail.value.daily, async (daily) => {
 
   const colors = chartColors()
   chart = createChart(chartContainer.value, {
-    height: 320,
+    height: 360,
     layout: {
       background: { color: colors.bg },
       textColor: colors.text,
@@ -69,7 +103,8 @@ watch(() => detail.value.daily, async (daily) => {
       vertLines: { color: colors.grid },
       horzLines: { color: colors.grid },
     },
-    timeScale: { borderColor: colors.grid },
+    crosshair: { mode: CrosshairMode.Normal },
+    timeScale: { borderColor: colors.grid, timeVisible: true },
     leftPriceScale: { borderColor: colors.grid, visible: true },
     rightPriceScale: { visible: false },
   })
@@ -101,20 +136,70 @@ watch(() => detail.value.daily, async (daily) => {
     priceScaleId: '',
   })
   volumeSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0.82, bottom: 0 },
+    scaleMargins: { top: 0.85, bottom: 0 },
   })
   volumeSeries.setData(chronological.map(d => {
     const open = Number(d.open), close = Number(d.close)
     return {
       time: String(d.date),
       value: Number(d.volume),
-      color: close >= open ? colors.down : colors.up,
+      color: close >= open ? colors.up : colors.down,
     }
   }))
+
+  // MA5 / MA20 / MA60 line overlays
+  const closes = chronological.map(d => Number(d.close))
+  const sma = (data: number[], period: number) => {
+    const result: (number | null)[] = []
+    let sum = 0
+    for (let i = 0; i < data.length; i++) {
+      sum += data[i]
+      if (i >= period) sum -= data[i - period]
+      result.push(i >= period - 1 ? sum / period : null)
+    }
+    return result
+  }
+  const ma5 = sma(closes, 5)
+  const ma20 = sma(closes, 20)
+  const ma60 = sma(closes, 60)
+
+  // Store last values for legend
+  const last5 = ma5.filter(v => v !== null).pop()
+  const last20 = ma20.filter(v => v !== null).pop()
+  const last60 = ma60.filter(v => v !== null).pop()
+  maLastValues.value = {
+    ma5: last5 !== undefined ? last5.toFixed(2) : '-',
+    ma20: last20 !== undefined ? last20.toFixed(2) : '-',
+    ma60: last60 !== undefined ? last60.toFixed(2) : '-',
+  }
+
+  const maColors = { ma5: '#f59e0b', ma20: '#3b82f6', ma60: '#a855f7' }
+
+  const maSeries5 = chart.addSeries(LineSeries, { color: maColors.ma5, lineWidth: 2, priceScaleId: 'left', lastValueVisible: false })
+  maSeries5.setData(ma5.map((v, i) => ({ time: String(chronological[i].date), value: v })).filter(d => d.value !== null))
+
+  const maSeries20 = chart.addSeries(LineSeries, { color: maColors.ma20, lineWidth: 2, priceScaleId: 'left', lastValueVisible: false })
+  maSeries20.setData(ma20.map((v, i) => ({ time: String(chronological[i].date), value: v })).filter(d => d.value !== null))
+
+  const maSeries60 = chart.addSeries(LineSeries, { color: maColors.ma60, lineWidth: 2, priceScaleId: 'left', lastValueVisible: false })
+  maSeries60.setData(ma60.map((v, i) => ({ time: String(chronological[i].date), value: v })).filter(d => d.value !== null))
+
+  // ResizeObserver for responsive chart
+  const ro = new ResizeObserver(() => {
+    if (chart && chartContainer.value) {
+      chart.applyOptions({ width: chartContainer.value.clientWidth })
+    }
+  })
+  ro.observe(chartContainer.value)
 })
 
-function fmt(val: unknown): string {
+function fmt(val: unknown, col?: string): string {
   if (val === null || val === undefined) return '-'
+  if (col === 'change_pct') {
+    const n = Number(val)
+    if (isNaN(n)) return '-'
+    return (n > 0 ? '+' : '') + n.toFixed(2) + '%'
+  }
   return String(val)
 }
 
@@ -136,6 +221,7 @@ const DAILY_COLUMNS = [
   { key: 'high', label: '最高' },
   { key: 'low', label: '最低' },
   { key: 'close', label: '收盘' },
+  { key: 'change_pct', label: '涨跌幅(%)' },
   { key: 'volume', label: '成交量(手)' },
   { key: 'turnover_rate', label: '换手率(%)' },
 ]
@@ -169,6 +255,11 @@ function activeDays(count: number) {
         <section v-if="detail.daily.length" class="detail-section">
           <h4 class="section-title">K线图</h4>
           <div ref="chartContainer" class="chart-container"></div>
+          <div class="ma-legend">
+            <span class="ma-item" style="color: #f59e0b">MA5: {{ maLastValues.ma5 }}</span>
+            <span class="ma-item" style="color: #3b82f6">MA20: {{ maLastValues.ma20 }}</span>
+            <span class="ma-item" style="color: #a855f7">MA60: {{ maLastValues.ma60 }}</span>
+          </div>
         </section>
 
         <section v-if="detail.daily.length" class="detail-section">
@@ -182,7 +273,7 @@ function activeDays(count: number) {
               </thead>
               <tbody>
                 <tr v-for="(row, i) in detail.daily" :key="i">
-                  <td v-for="col in DAILY_COLUMNS" :key="col.key">{{ fmt(row[col.key]) }}</td>
+                  <td v-for="col in DAILY_COLUMNS" :key="col.key">{{ fmt(row[col.key], col.key) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -215,7 +306,12 @@ function activeDays(count: number) {
 .detail-label { color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 2px; }
 .detail-value { color: var(--text-primary); font-weight: 500; }
 
-.chart-container { width: 100%; height: 320px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); position: relative; }
+.chart-container { width: 100%; height: 360px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); position: relative; }
+.ma-legend {
+  display: flex; gap: 14px; justify-content: center; padding: 6px 0 0;
+  font-size: 12px; font-weight: 500;
+}
+.ma-item { display: inline-flex; align-items: center; gap: 2px; }
 
 .daily-table-wrap { max-height: 300px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
 .daily-table { width: 100%; border-collapse: collapse; font-size: 11px; }

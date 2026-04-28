@@ -19,6 +19,10 @@ def list_stocks(
     market_cap_max: float | None = Query(None),
     dividend_yield_min: float | None = Query(None),
     revenue_growth_min: float | None = Query(None),
+    revenue_growth_max: float | None = Query(None),
+    change_pct_min: float | None = Query(None),
+    change_pct_max: float | None = Query(None),
+    volume_ratio_min: float | None = Query(None),
     exclude_st: bool = Query(True),
     sort_by: str = Query("code"),
     order: str = Query("asc"),
@@ -30,7 +34,9 @@ def list_stocks(
         "pb_min": pb_min, "pb_max": pb_max, "roe_min": roe_min,
         "market_cap_min": market_cap_min, "market_cap_max": market_cap_max,
         "dividend_yield_min": dividend_yield_min,
-        "revenue_growth_min": revenue_growth_min,
+        "revenue_growth_min": revenue_growth_min, "revenue_growth_max": revenue_growth_max,
+        "change_pct_min": change_pct_min, "change_pct_max": change_pct_max,
+        "volume_ratio_min": volume_ratio_min,
         "exclude_st": exclude_st, "sort_by": sort_by, "order": order,
     }.items() if v is not None}
 
@@ -63,13 +69,13 @@ def stock_detail(code: str):
             basic_dict["list_date"] = corp["list_date"]
 
     # Try Sina K-line first, then akshare, then fallback to stock_daily
-    kline_df = fetch_kline_sina(code)
+    kline_df = fetch_kline_sina(code, days=120)
     if kline_df.empty:
-        kline_df = fetch_stock_history(code)
+        kline_df = fetch_stock_history(code, days=120)
     daily_data = kline_df.where(kline_df.notna(), None).to_dict(orient="records") if not kline_df.empty else []
 
     if not daily_data:
-        query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 60"
+        query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 120"
         with engine.connect() as conn:
             df = pd.read_sql_query(query, conn, params={"code": code})
         daily_data = df.where(df.notna(), None).to_dict(orient="records")

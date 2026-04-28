@@ -1,9 +1,9 @@
 <script setup lang="ts">
-const props = defineProps<{ total: number; loading: boolean; items: Record<string, unknown>[] }>()
+const props = defineProps<{ total: number; loading: boolean; items: Record<string, unknown>[]; visibleCols: string[] }>()
 
 function exportCSV() {
   if (props.items.length === 0) return
-  const cols = ['code', 'name', 'pe_ttm', 'pb', 'roe', 'market_cap', 'dividend_yield']
+  const cols = props.visibleCols
   const header = cols.join(',')
   const rows = props.items.map(item =>
     cols.map(c => item[c] ?? '').join(',')

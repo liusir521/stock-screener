@@ -93,12 +93,17 @@ def fetch_all_sina_data() -> pd.DataFrame:
             "ma60": 0,
             "macd_signal": "",
             "dividend_yield": 0,
+            "change_pct": float(item.get("changepercent", 0) or 0),
+            "volume_ratio": 0,
         })
 
     df = pd.DataFrame(records)
     # Compute circulating shares: float_shares = nmc(万元) * 10000 / close(元)
     mask = (df["close"] > 0) & (df["nmc"] > 0)
     df.loc[mask, "float_shares"] = df.loc[mask, "nmc"] * 10000 / df.loc[mask, "close"]
+    # Compute ROE from PB and PE: ROE(%) = PB / PE * 100
+    roe_mask = (df["pe_ttm"] > 0) & (df["pb"] > 0)
+    df.loc[roe_mask, "roe"] = (df.loc[roe_mask, "pb"] / df.loc[roe_mask, "pe_ttm"]) * 100
     return df
 
 
@@ -119,7 +124,8 @@ def fetch_daily_indicators(date: str | None = None) -> pd.DataFrame:
         return df
     daily_cols = ["code", "date", "close", "volume", "turnover_rate",
                   "pe_ttm", "pb", "market_cap", "roe", "revenue_growth_3y",
-                  "ma5", "ma20", "ma60", "macd_signal", "dividend_yield"]
+                  "ma5", "ma20", "ma60", "macd_signal", "dividend_yield",
+                  "change_pct", "volume_ratio"]
     return df[daily_cols]
 
 
@@ -186,6 +192,41 @@ def fetch_stock_history(code: str, days: int = 60) -> pd.DataFrame:
         return df.tail(days)
     except Exception:
         return pd.DataFrame()
+
+
+def compute_volume_ratio(code: str) -> float:
+    """Fetch 6-day K-line and return volume_ratio = today_vol / avg_prev_5_vol."""
+    df = fetch_kline_sina(code, days=6)
+    if df.empty or len(df) < 2:
+        return 0.0
+    volumes = df["volume"].tolist()
+    today_vol = volumes[-1]
+    prev_vols = volumes[:-1]
+    if not prev_vols or sum(prev_vols) == 0:
+        return 0.0
+    avg_vol = sum(prev_vols) / len(prev_vols)
+    if avg_vol == 0:
+        return 0.0
+    return round(float(today_vol) / avg_vol, 2)
+
+
+def batch_compute_volume_ratios(codes: list[str], max_workers: int = 15) -> dict[str, float]:
+    """Compute volume ratios for many stocks using a thread pool."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    results: dict[str, float] = {}
+    done = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        fut = {pool.submit(compute_volume_ratio, c): c for c in codes}
+        for f in as_completed(fut):
+            c = fut[f]
+            try:
+                results[c] = f.result()
+            except Exception:
+                results[c] = 0.0
+            done += 1
+            if done % 500 == 0:
+                print(f"  volume_ratio: {done}/{len(codes)}")
+    return results
 
 
 def fetch_corp_info(code: str) -> dict[str, str]:

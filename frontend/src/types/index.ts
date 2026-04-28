@@ -17,6 +17,8 @@ export interface StockItem {
   macd_signal: string
   market_cap: number
   dividend_yield: number
+  change_pct: number
+  volume_ratio: number
 }
 
 export interface StockListResponse {

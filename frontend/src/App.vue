@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar.vue'
 import StockTable from './components/StockTable.vue'
 import StockDetail from './components/StockDetail.vue'
 import { api } from './api'
+import { useWatchlist } from './composables/useWatchlist'
 
 const isDark = ref(false)
 
@@ -20,11 +21,18 @@ onMounted(() => {
   handleSearch({})
 })
 
+const watchlist = useWatchlist()
+const watchlistOnly = ref(false)
+
 const items = ref<Record<string, unknown>[]>([])
 const total = ref(0)
 const loading = ref(false)
 const selectedCode = ref<string | null>(null)
 const currentFilters = ref<Record<string, string>>({})
+
+const displayItems = computed(() => {
+  return watchlistOnly.value ? watchlist.filter(items.value) : items.value
+})
 const currentPage = computed(() => Number(currentFilters.value.page) || 1)
 const sortBy = computed(() => currentFilters.value.sort_by || '')
 const sortOrder = computed(() => currentFilters.value.order || 'asc')
@@ -109,7 +117,7 @@ function handleRowClick(code: string) {
 
 <template>
   <div class="app-layout">
-    <Sidebar @search="handleSearch" />
+    <Sidebar :watchlist-only="watchlistOnly" @search="handleSearch" @update:watchlist-only="watchlistOnly = $event" />
     <main class="main-content">
       <div class="top-bar">
         <span class="app-title">A股筛选器</span>
@@ -123,10 +131,11 @@ function handleRowClick(code: string) {
         </div>
       </div>
       <StockTable
-        :items="items" :total="total" :loading="loading"
+        :items="displayItems" :total="total" :loading="loading"
         :current-page="currentPage" :sort-by="sortBy" :sort-order="sortOrder"
+        :favorites="watchlist.codes.value"
         @page-change="handlePageChange" @sort-change="handleSortChange"
-        @row-click="handleRowClick"
+        @row-click="handleRowClick" @toggle-favorite="watchlist.toggle"
       />
     </main>
     <StockDetail :code="selectedCode" @close="selectedCode = null" />

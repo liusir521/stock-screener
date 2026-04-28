@@ -6,7 +6,10 @@ import StrategySave from './StrategySave.vue'
 
 const emit = defineEmits<{
   search: [filters: Record<string, string>]
+  'update:watchlistOnly': [value: boolean]
 }>()
+
+const props = defineProps<{ watchlistOnly?: boolean }>()
 
 const keyword = ref('')
 const market = reactive({ value: '' })
@@ -19,10 +22,13 @@ const fundamental = ref<Record<string, [number, number]>>({
   roe: [0, 50],
   market_cap: [0, 5000],
   dividend_yield: [0, 10],
+  revenue_growth_3y: [0, 100],
 })
 
 const technical = ref<Record<string, [number, number]>>({
   turnover_rate: [0, 20],
+  change_pct: [-30, 30],
+  volume_ratio: [0, 10],
 })
 
 function handleKeywordSearch() {
@@ -36,8 +42,9 @@ function handleKeywordSearch() {
     roe: [0, 50],
     market_cap: [0, 5000],
     dividend_yield: [0, 10],
+    revenue_growth_3y: [0, 100],
   }
-  technical.value = { turnover_rate: [0, 20] }
+  technical.value = { turnover_rate: [0, 20], change_pct: [-10, 10], volume_ratio: [0, 10] }
   keyword.value = kw
   const params: Record<string, string> = {
     keyword: kw,
@@ -68,6 +75,10 @@ function handleFilterSearch() {
   addRange('roe', fundamental.value.roe)
   addRange('market_cap', fundamental.value.market_cap)
   addRange('dividend_yield', fundamental.value.dividend_yield)
+  addRange('revenue_growth', fundamental.value.revenue_growth_3y)
+
+  addRange('change_pct', technical.value.change_pct)
+  addRange('volume_ratio', technical.value.volume_ratio)
 
   params.sort_by = currentFilters.value.sort_by || 'pe_ttm'
   params.order = currentFilters.value.order || 'asc'
@@ -89,15 +100,16 @@ function handleReset() {
     roe: [0, 50],
     market_cap: [0, 5000],
     dividend_yield: [0, 10],
+    revenue_growth_3y: [0, 100],
   }
-  technical.value = { turnover_rate: [0, 20] }
+  technical.value = { turnover_rate: [0, 20], change_pct: [-10, 10], volume_ratio: [0, 10] }
   currentFilters.value = {}
   emit('search', {})
 }
 
 function handleLoadStrategy(filters: Record<string, string>) {
   if (filters.market) market.value = filters.market
-  const numKeys = ['pe_min', 'pe_max', 'pb_min', 'pb_max', 'roe_min', 'market_cap_min', 'market_cap_max', 'dividend_yield_min']
+  const numKeys = ['pe_min', 'pe_max', 'pb_min', 'pb_max', 'roe_min', 'market_cap_min', 'market_cap_max', 'dividend_yield_min', 'revenue_growth_min', 'change_pct_min', 'change_pct_max', 'volume_ratio_min']
   numKeys.forEach(k => {
     if (filters[k]) {
       const val = Number(filters[k])
@@ -112,6 +124,11 @@ function handleLoadStrategy(filters: Record<string, string>) {
         if (k === 'market_cap_min') fundamental.value.market_cap[0] = val
         else fundamental.value.market_cap[1] = val
       } else if (k.startsWith('dividend_yield')) fundamental.value.dividend_yield[0] = val
+      else if (k.startsWith('revenue_growth')) fundamental.value.revenue_growth_3y[0] = val
+      else if (k.startsWith('change_pct_')) {
+        if (k === 'change_pct_min') technical.value.change_pct[0] = val
+        else technical.value.change_pct[1] = val
+      } else if (k.startsWith('volume_ratio')) technical.value.volume_ratio[0] = val
     }
   })
   handleFilterSearch()
@@ -142,15 +159,22 @@ function handleLoadStrategy(filters: Record<string, string>) {
         { key: 'roe', label: 'ROE (%)', min: -50, max: 100, step: 1 },
         { key: 'market_cap', label: '市值（亿）', min: 0, max: 10000, step: 10 },
         { key: 'dividend_yield', label: '股息率 (%)', min: 0, max: 20, step: 0.1 },
+        { key: 'revenue_growth_3y', label: '营收增长率 (%)', min: -100, max: 500, step: 1 },
       ]"
       v-model="fundamental"
     />
     <FilterGroup title="技术面"
       :filters="[
         { key: 'turnover_rate', label: '换手率 (%)', min: 0, max: 50, step: 0.5 },
+        { key: 'change_pct', label: '涨跌幅 (%)', min: -30, max: 30, step: 0.1 },
+        { key: 'volume_ratio', label: '量比', min: 0, max: 20, step: 0.1 },
       ]"
       v-model="technical"
     />
+    <label class="watchlist-toggle">
+      <input type="checkbox" :checked="props.watchlistOnly" @change="emit('update:watchlistOnly', ($event.target as HTMLInputElement).checked)" />
+      仅看自选
+    </label>
     <button class="search-btn" @click="handleFilterSearch">筛选</button>
     <button class="reset-btn" @click="handleReset">重置</button>
     <StrategySave :active-filters="currentFilters" @load="handleLoadStrategy" />
@@ -194,4 +218,9 @@ function handleLoadStrategy(filters: Record<string, string>) {
   border: 1px solid var(--border-strong); border-radius: 6px; font-size: 12px; cursor: pointer;
 }
 .reset-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.watchlist-toggle {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary);
+  cursor: pointer; padding: 4px 0; margin-bottom: 6px;
+}
+.watchlist-toggle input { cursor: pointer; }
 </style>

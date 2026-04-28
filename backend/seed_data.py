@@ -61,9 +61,25 @@ def seed() -> dict:
                     macd_signal=row["macd_signal"], market_cap=row["market_cap"],
                     nmc=row["nmc"], float_shares=row["float_shares"],
                     dividend_yield=row["dividend_yield"],
+                    change_pct=row["change_pct"], volume_ratio=row["volume_ratio"],
                 ))
                 daily_count += 1
             session.commit()
+
+            # Compute volume_ratio via K-line data (parallel fetches)
+            codes = df["code"].tolist()
+            print(f"  Computing volume_ratio for {len(codes)} stocks...")
+            from services.data_fetcher import batch_compute_volume_ratios
+            vr_map = batch_compute_volume_ratios(codes)
+            updated_vr = 0
+            for code, vr in vr_map.items():
+                if vr > 0:
+                    session.query(StockDaily).filter(
+                        StockDaily.code == code, StockDaily.date == df.iloc[0]["date"]
+                    ).update({"volume_ratio": vr})
+                    updated_vr += 1
+            session.commit()
+            print(f"  volume_ratio updated: {updated_vr} stocks")
             session.close()
 
             _refresh_status["basic_count"] = basic_count

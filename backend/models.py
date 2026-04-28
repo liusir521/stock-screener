@@ -36,3 +36,5 @@ class StockDaily(Base):
     nmc: Mapped[float] = mapped_column(Float, default=0)
     float_shares: Mapped[float] = mapped_column(Float, default=0)
     dividend_yield: Mapped[float] = mapped_column(Float, default=0)
+    change_pct: Mapped[float] = mapped_column(Float, default=0)
+    volume_ratio: Mapped[float] = mapped_column(Float, default=0)
