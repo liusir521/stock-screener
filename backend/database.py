@@ -11,4 +11,5 @@ Base = declarative_base()
 
 def init_db():
     """Create all tables if they don't exist."""
+    import models  # noqa: F401  ensure models are registered with Base.metadata
     Base.metadata.create_all(bind=engine)
