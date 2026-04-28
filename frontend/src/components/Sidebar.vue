@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import MarketFilter from './MarketFilter.vue'
 import FilterGroup from './FilterGroup.vue'
+import StrategySave from './StrategySave.vue'
 
 const emit = defineEmits<{
   search: [filters: Record<string, string>]
@@ -42,7 +43,33 @@ function handleSearch() {
   params.page = '1'
   params.page_size = '50'
 
+  currentFilters.value = params
   emit('search', params)
+}
+
+const currentFilters = ref<Record<string, string>>({})
+
+function handleLoadStrategy(filters: Record<string, string>) {
+  if (filters.market) market.value = filters.market
+  const numKeys = ['pe_min', 'pe_max', 'pb_min', 'pb_max', 'roe_min', 'market_cap_min', 'market_cap_max', 'dividend_yield_min']
+  numKeys.forEach(k => {
+    if (filters[k]) {
+      // Apply numeric filter values to reactive state
+      const val = Number(filters[k])
+      if (k.startsWith('pe_')) {
+        if (k === 'pe_min') fundamental.pe_ttm[0] = val
+        else fundamental.pe_ttm[1] = val
+      } else if (k.startsWith('pb_')) {
+        if (k === 'pb_min') fundamental.pb[0] = val
+        else fundamental.pb[1] = val
+      } else if (k.startsWith('roe')) fundamental.roe[0] = val
+      else if (k.startsWith('market_cap_')) {
+        if (k === 'market_cap_min') fundamental.market_cap[0] = val
+        else fundamental.market_cap[1] = val
+      } else if (k.startsWith('dividend_yield')) fundamental.dividend_yield[0] = val
+    }
+  })
+  handleSearch()
 }
 </script>
 
@@ -68,6 +95,7 @@ function handleSearch() {
     />
     <button class="search-btn" @click="handleSearch">筛选</button>
     <button class="reset-btn" @click="$emit('search', {})">重置</button>
+    <StrategySave :active-filters="currentFilters" @load="handleLoadStrategy" />
   </aside>
 </template>
 
