@@ -1,0 +1,46 @@
+[
+  {
+    "name": "��ROE�ɳ���",
+    "filters": {
+      "roe_min": 15,
+      "revenue_growth_min": 20,
+      "exclude_st": true,
+      "sort_by": "roe",
+      "order": "desc"
+    }
+  },
+  {
+    "name": "�͹�ֵ����",
+    "filters": {
+      "pe_max": 15,
+      "pb_max": 1.5,
+      "dividend_yield_min": 3,
+      "exclude_st": true,
+      "sort_by": "pe_ttm",
+      "order": "asc"
+    }
+  },
+  {
+    "name": "���߶�ͷ����",
+    "filters": {
+      "exclude_st": true,
+      "sort_by": "market_cap",
+      "order": "desc"
+    }
+  },
+  {
+    "name": "�¸߸���",
+    "filters": {
+      "exclude_st": true,
+      "sort_by": "close",
+      "order": "desc"
+    }
+  },
+  {
+    "name": "test",
+    "filters": {
+      "pe_min": 5,
+      "pe_max": 15
+    }
+  }
+]
