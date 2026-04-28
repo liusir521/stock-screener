@@ -58,16 +58,16 @@ function handleFilterSearch() {
   if (market.value) params.market = market.value
   params.exclude_st = 'true'
 
-  const addRange = (key: string, range: [number, number], defaults: [number, number]) => {
-    if (range[0] !== defaults[0]) params[`${key}_min`] = String(range[0])
-    if (range[1] !== defaults[1]) params[`${key}_max`] = String(range[1])
+  const addRange = (key: string, range: [number, number]) => {
+    params[`${key}_min`] = String(range[0])
+    params[`${key}_max`] = String(range[1])
   }
 
-  addRange('pe', fundamental.value.pe_ttm, PE_DEFAULT)
-  addRange('pb', fundamental.value.pb, [0, 10])
-  addRange('roe', fundamental.value.roe, [0, 50])
-  addRange('market_cap', fundamental.value.market_cap, [0, 5000])
-  addRange('dividend_yield', fundamental.value.dividend_yield, [0, 10])
+  addRange('pe', fundamental.value.pe_ttm)
+  addRange('pb', fundamental.value.pb)
+  addRange('roe', fundamental.value.roe)
+  addRange('market_cap', fundamental.value.market_cap)
+  addRange('dividend_yield', fundamental.value.dividend_yield)
 
   params.sort_by = currentFilters.value.sort_by || 'pe_ttm'
   params.order = currentFilters.value.order || 'asc'
