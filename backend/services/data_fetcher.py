@@ -186,3 +186,63 @@ def fetch_stock_history(code: str, days: int = 60) -> pd.DataFrame:
         return df.tail(days)
     except Exception:
         return pd.DataFrame()
+
+
+def fetch_corp_info(code: str) -> dict[str, str]:
+    """Fetch industry and list_date for a single stock from Sina corp pages."""
+    import re
+    import requests as req
+    result = {"industry": "", "list_date": ""}
+
+    try:
+        url = f"http://money.finance.sina.com.cn/corp/go.php/vCI_CorpInfo/stockid/{code}/displaytype/4.phtml"
+        r = req.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        m = re.search(
+            rb'<td[^>]*class="ct"[^>]*>[^<]*</td>\s*<td[^>]*class="cc"[^>]*>.*?<a[^>]*>(\d{4}-\d{2}-\d{2})</a>',
+            r.content, re.DOTALL,
+        )
+        if m:
+            result["list_date"] = m.group(1).decode()
+    except Exception:
+        pass
+
+    try:
+        url = f"http://vip.stock.finance.sina.com.cn/corp/go.php/vCI_CorpOtherInfo/stockid/{code}/menu_num/2.phtml"
+        r = req.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        raw = r.content
+        idx = raw.find(b'colspan="2"')
+        if idx > 0:
+            chunk = raw[idx:idx + 2000]
+            m = re.search(
+                rb'<td[^>]*class="ct"[^>]*>\s*([\x80-\xff]{2,10}?)\s*</td>\s*<td[^>]*class="ct"[^>]*>\s*<a',
+                chunk,
+            )
+            if m:
+                result["industry"] = m.group(1).strip().decode("gb2312", errors="replace").strip()
+    except Exception:
+        pass
+
+    return result
+    """Fetch recent daily K-line data for a single stock using akshare."""
+    from datetime import timedelta
+    import akshare as ak
+
+    end_date = datetime.now().strftime("%Y%m%d")
+    start_date = (datetime.now() - timedelta(days=days * 2)).strftime("%Y%m%d")
+    try:
+        df = ak.stock_zh_a_hist(symbol=code, period="daily",
+                                 start_date=start_date, end_date=end_date,
+                                 adjust="qfq")
+        df = df.rename(columns={
+            "日期": "date",
+            "开盘": "open",
+            "收盘": "close",
+            "最高": "high",
+            "最低": "low",
+            "成交量": "volume",
+            "换手率": "turnover_rate",
+        })
+        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+        return df.tail(days)
+    except Exception:
+        return pd.DataFrame()

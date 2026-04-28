@@ -119,7 +119,15 @@ function fmt(val: unknown): string {
 }
 
 const BASIC_LABELS: Record<string, string> = {
-  code: '代码', name: '名称', market: '板块', industry: '行业', is_st: 'ST',
+  code: '代码', name: '名称', market: '板块', industry: '行业', list_date: '上市日期',
+}
+
+const MARKET_NAMES: Record<string, string> = {
+  sh_sz: '沪深A股', chinext: '创业板', star: '科创板', bse: '北交所',
+}
+
+function marketName(market: string): string {
+  return MARKET_NAMES[market] || market
 }
 
 const DAILY_COLUMNS = [
@@ -149,10 +157,12 @@ function activeDays(count: number) {
         <section v-if="detail.basic" class="detail-section">
           <h4 class="section-title">基本信息</h4>
           <div class="detail-grid">
-            <div v-for="(val, key) in detail.basic" :key="key" class="detail-item">
-              <span class="detail-label">{{ BASIC_LABELS[key] || key }}</span>
-              <span class="detail-value">{{ fmt(val) }}</span>
-            </div>
+            <template v-for="(val, key) in detail.basic" :key="key">
+              <div v-if="BASIC_LABELS[key]" class="detail-item">
+                <span class="detail-label">{{ BASIC_LABELS[key] }}</span>
+                <span class="detail-value">{{ key === 'market' ? marketName(String(val)) : fmt(val) }}</span>
+              </div>
+            </template>
           </div>
         </section>
 

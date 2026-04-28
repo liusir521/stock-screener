@@ -46,11 +46,21 @@ def stock_detail(code: str):
     from database import engine
     from sqlalchemy import text
     import pandas as pd
-    from services.data_fetcher import fetch_kline_sina, fetch_stock_history
+    from services.data_fetcher import fetch_kline_sina, fetch_stock_history, fetch_corp_info
 
     basic_query = "SELECT * FROM stock_basic WHERE code = :code"
     with engine.connect() as conn:
         basic = pd.read_sql_query(basic_query, conn, params={"code": code})
+
+    basic_dict = basic.to_dict(orient="records")[0] if len(basic) > 0 else None
+
+    # Enrich basic info with industry and list_date from Sina corp pages
+    if basic_dict and (not basic_dict.get("industry") or not basic_dict.get("list_date")):
+        corp = fetch_corp_info(code)
+        if corp.get("industry"):
+            basic_dict["industry"] = corp["industry"]
+        if corp.get("list_date"):
+            basic_dict["list_date"] = corp["list_date"]
 
     # Try Sina K-line first, then akshare, then fallback to stock_daily
     kline_df = fetch_kline_sina(code)
@@ -82,7 +92,7 @@ def stock_detail(code: str):
                 d["turnover_rate"] = round(vol * 100 / float_shares, 2)
 
     return {
-        "basic": basic.to_dict(orient="records")[0] if len(basic) > 0 else None,
+        "basic": basic_dict,
         "daily": daily_data,
     }
 
