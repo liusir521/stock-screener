@@ -183,44 +183,57 @@ function handleLoadStrategy(filters: Record<string, string>) {
 
 <style scoped>
 .sidebar {
-  width: 260px; flex-shrink: 0; background: var(--bg-surface); padding: 16px;
+  width: 270px; flex-shrink: 0; background: var(--bg-surface); padding: 20px 16px;
   border-right: 1px solid var(--border); overflow-y: auto; height: 100vh;
+  box-shadow: 1px 0 8px var(--shadow);
 }
-.sidebar-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text-primary); }
-.keyword-search { display: flex; gap: 6px; margin-bottom: 14px; }
+.sidebar-title {
+  font-size: 16px; font-weight: 800; margin-bottom: 16px; color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.keyword-search { display: flex; gap: 6px; margin-bottom: 16px; }
 .keyword-input-wrap { position: relative; flex: 1; }
 .keyword-input {
-  width: 100%; padding: 6px 28px 6px 10px; border: 1px solid var(--border-strong);
-  border-radius: 6px; background: var(--bg-surface); color: var(--text-primary);
-  font-size: 13px; outline: none;
+  width: 100%; padding: 7px 30px 7px 12px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text-primary);
+  font-size: 13px; outline: none; transition: all var(--transition);
 }
-.keyword-input:focus { border-color: var(--accent); }
+.keyword-input:focus {
+  border-color: var(--accent); background: var(--bg-surface);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
 .keyword-input::placeholder { color: var(--text-muted); }
 .keyword-clear {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   background: none; border: none; color: var(--text-muted); cursor: pointer;
-  font-size: 14px; padding: 2px 4px; line-height: 1;
+  font-size: 14px; padding: 2px 4px; line-height: 1; border-radius: 50%;
+  width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
 }
-.keyword-clear:hover { color: var(--text-secondary); }
+.keyword-clear:hover { background: var(--border); color: var(--text-secondary); }
 .keyword-btn {
-  padding: 6px 12px; border: none; border-radius: 6px;
-  background: var(--accent); color: white; font-size: 13px; cursor: pointer;
-  white-space: nowrap; flex-shrink: 0;
+  padding: 7px 14px; border: none; border-radius: var(--radius-sm);
+  background: var(--accent); color: white; font-size: 13px; font-weight: 500;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  transition: all var(--transition);
 }
-.keyword-btn:hover { background: var(--accent-hover); }
+.keyword-btn:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(59,130,246,0.3); }
 .search-btn {
-  width: 100%; padding: 8px; background: var(--accent); color: white; border: none;
-  border-radius: 6px; font-size: 14px; cursor: pointer; margin-bottom: 6px;
+  width: 100%; padding: 9px; background: var(--accent); color: white; border: none;
+  border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer;
+  margin-bottom: 8px; transition: all var(--transition);
 }
-.search-btn:hover { background: var(--accent-hover); }
+.search-btn:hover { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(59,130,246,0.35); }
 .reset-btn {
-  width: 100%; padding: 6px; background: transparent; color: var(--text-secondary);
-  border: 1px solid var(--border-strong); border-radius: 6px; font-size: 12px; cursor: pointer;
+  width: 100%; padding: 7px; background: transparent; color: var(--text-secondary);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  font-size: 12px; cursor: pointer; font-weight: 500; transition: all var(--transition);
 }
-.reset-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.reset-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--text-muted); }
 .watchlist-toggle {
-  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary);
-  cursor: pointer; padding: 4px 0; margin-bottom: 6px;
+  display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary);
+  cursor: pointer; padding: 8px 0; margin-bottom: 8px; font-weight: 500;
 }
-.watchlist-toggle input { cursor: pointer; }
+.watchlist-toggle input[type="checkbox"] {
+  cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent);
+}
 </style>

@@ -38,13 +38,16 @@ function update(key: string, val: [number, number]) {
 
 <style scoped>
 .filter-group {
-  border: 1px solid var(--border); border-radius: 6px; margin-bottom: 10px; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px;
+  overflow: hidden; box-shadow: 0 1px 3px var(--shadow);
 }
 .filter-group-header {
-  display: flex; justify-content: space-between; padding: 8px 10px;
-  background: var(--bg-alt); cursor: pointer; user-select: none;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 12px; background: var(--bg-alt); cursor: pointer;
+  user-select: none; transition: background var(--transition);
 }
-.filter-group-title { font-weight: 600; font-size: 13px; color: var(--text-primary); }
-.filter-group-arrow { font-size: 10px; color: var(--text-muted); }
-.filter-group-body { padding: 8px 10px; }
+.filter-group-header:hover { background: var(--bg-hover); }
+.filter-group-title { font-weight: 700; font-size: 13px; color: var(--text-primary); }
+.filter-group-arrow { font-size: 10px; color: var(--text-muted); transition: transform var(--transition); }
+.filter-group-body { padding: 10px 12px; }
 </style>

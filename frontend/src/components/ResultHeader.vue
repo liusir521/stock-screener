@@ -28,18 +28,18 @@ function exportCSV() {
 
 <style scoped>
 .result-header {
-  display: flex; align-items: center; gap: 16px; padding: 12px 0;
+  display: flex; align-items: center; gap: 16px; padding: 14px 0 10px;
   border-bottom: 1px solid var(--border); margin-bottom: 8px;
 }
-.result-count { font-size: 14px; color: var(--text-primary); }
-.result-count strong { color: var(--accent); }
-.loading { font-size: 12px; color: #f59e0b; }
+.result-count { font-size: 14px; color: var(--text-primary); font-weight: 500; }
+.result-count strong { color: var(--accent); font-weight: 700; }
+.loading { font-size: 13px; color: var(--accent); font-weight: 500; display: flex; align-items: center; gap: 6px; }
 .header-actions { display: flex; gap: 6px; margin-left: auto; }
 .export-btn {
-  padding: 2px 10px; border: 1px solid #16a34a; border-radius: 4px;
-  background: #f0fdf4; color: #16a34a; font-size: 12px; cursor: pointer;
-  margin-left: 8px;
+  padding: 5px 12px; border: 1px solid var(--green); border-radius: var(--radius-sm);
+  background: transparent; color: var(--green); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all var(--transition);
 }
 .export-btn:disabled { opacity: 0.4; cursor: default; }
-.export-btn:hover:not(:disabled) { background: #dcfce7; }
+.export-btn:hover:not(:disabled) { background: var(--green); color: white; box-shadow: 0 2px 8px rgba(34,197,94,0.3); }
 </style>

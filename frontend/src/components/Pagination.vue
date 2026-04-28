@@ -56,17 +56,21 @@ function go(page: number) {
 <style scoped>
 .pagination {
   display: flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 12px 0; font-size: 13px;
+  padding: 16px 0 8px; font-size: 13px;
 }
 .pagination button {
-  min-width: 32px; height: 32px; padding: 0 6px;
-  border: 1px solid var(--border-strong); border-radius: 4px;
+  min-width: 34px; height: 34px; padding: 0 8px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   background: var(--bg-surface); color: var(--text-secondary); cursor: pointer;
+  font-weight: 500; transition: all var(--transition);
 }
-.pagination button:hover:not(:disabled):not(.active) { background: var(--bg-hover); }
+.pagination button:hover:not(:disabled):not(.active) {
+  background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent);
+}
 .pagination button:disabled { opacity: 0.3; cursor: default; }
 .pagination button.active {
   background: var(--accent); border-color: var(--accent); color: white;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.3);
 }
-.ellipsis { color: var(--text-muted); padding: 0 4px; }
+.ellipsis { color: var(--text-muted); padding: 0 6px; font-weight: 500; }
 </style>

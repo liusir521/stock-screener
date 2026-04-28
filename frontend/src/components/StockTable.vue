@@ -78,9 +78,16 @@ function fmt(val: unknown, key: string): string {
   if (key === 'market_cap') return n >= 10000 ? (n / 10000).toFixed(1) + '万亿' : n.toFixed(0)
   if (key === 'pe_ttm' || key === 'pb' || key === 'close') return n.toFixed(2)
   if (key === 'volume') return n >= 1e8 ? (n / 1e8).toFixed(1) + '亿' : n >= 1e4 ? (n / 1e4).toFixed(0) + '万' : n.toFixed(0)
-  if (key === 'change_pct') return n.toFixed(2) + '%'
+  if (key === 'change_pct') return (n > 0 ? '+' : '') + n.toFixed(2) + '%'
   if (key === 'volume_ratio') return n.toFixed(2)
   return String(val)
+}
+
+function cellClass(val: unknown, key: string): string {
+  const n = Number(val)
+  if (isNaN(n) || n === 0) return ''
+  if (key === 'change_pct') return n > 0 ? 'num-up' : 'num-down'
+  return ''
 }
 </script>
 
@@ -110,8 +117,16 @@ function fmt(val: unknown, key: string): string {
         </tr>
       </thead>
       <tbody>
+        <tr v-if="loading && items.length === 0">
+          <td :colspan="visibleColumns.length" class="loading-cell">
+            <span class="loading-spinner"></span> 加载中...
+          </td>
+        </tr>
         <tr v-if="items.length === 0 && !loading">
-          <td :colspan="visibleColumns.length" class="empty">暂无数据，请设置筛选条件</td>
+          <td :colspan="visibleColumns.length" class="empty">
+            <span class="empty-icon">📊</span>
+            <span>暂无数据，请设置筛选条件</span>
+          </td>
         </tr>
         <tr v-for="item in items" :key="item.code as string"
           @click="emit('row-click', item.code as string)" class="data-row">
@@ -119,7 +134,7 @@ function fmt(val: unknown, key: string): string {
             <span v-if="col.key === 'favorite'" class="star-btn" :class="{ active: favorites.has(item.code as string) }" @click.stop="emit('toggle-favorite', item.code as string)">
               {{ favorites.has(item.code as string) ? '★' : '☆' }}
             </span>
-            <span v-else :class="{ 'stock-code': col.key === 'code' }">{{ col.key === 'code' ? item[col.key] : fmt(item[col.key], col.key) }}</span>
+            <span v-else :class="[col.key === 'code' ? 'stock-code' : '', cellClass(item[col.key], col.key)]">{{ col.key === 'code' ? item[col.key] : fmt(item[col.key], col.key) }}</span>
           </td>
         </tr>
       </tbody>
@@ -129,39 +144,56 @@ function fmt(val: unknown, key: string): string {
 </template>
 
 <style scoped>
-.stock-table-container { flex: 1; padding: 0 20px; overflow-y: auto; }
-.column-picker-wrap { position: relative; display: inline-block; margin-bottom: 4px; }
+.stock-table-container { flex: 1; padding: 0 24px; overflow-y: auto; }
+.column-picker-wrap { position: relative; display: inline-block; margin-bottom: 6px; }
 .column-picker-btn {
-  padding: 2px 8px; border: 1px solid var(--border-strong); border-radius: 4px;
-  background: var(--bg-surface); color: var(--text-secondary); font-size: 11px; cursor: pointer;
+  padding: 4px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--bg-surface); color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  font-weight: 500; transition: all var(--transition);
 }
-.column-picker-btn:hover { background: var(--bg-hover); }
+.column-picker-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .column-picker-dropdown {
   position: absolute; top: 100%; left: 0; z-index: 50;
   background: var(--bg-surface); border: 1px solid var(--border-strong);
-  border-radius: 6px; padding: 6px 0; min-width: 150px; box-shadow: 0 4px 12px var(--shadow);
+  border-radius: var(--radius); padding: 6px 0; min-width: 160px;
+  box-shadow: 0 8px 24px var(--shadow-lg);
 }
 .column-picker-item {
-  display: flex; align-items: center; gap: 6px; padding: 4px 10px;
-  font-size: 12px; color: var(--text-primary); cursor: pointer;
+  display: flex; align-items: center; gap: 6px; padding: 5px 12px;
+  font-size: 13px; color: var(--text-primary); cursor: pointer; transition: background var(--transition);
 }
 .column-picker-item:hover { background: var(--bg-hover); }
-.column-picker-item input { cursor: pointer; }
-.stock-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.column-picker-item input { cursor: pointer; accent-color: var(--accent); }
+.stock-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
 .stock-table th {
-  text-align: left; padding: 8px 6px; border-bottom: 2px solid var(--border);
-  color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; background: var(--bg-surface);
-  user-select: none;
+  text-align: left; padding: 10px 8px; border-bottom: 2px solid var(--border);
+  color: var(--text-secondary); font-weight: 600; font-size: 12px; letter-spacing: 0.02em;
+  position: sticky; top: 0; background: var(--bg-surface); user-select: none; z-index: 2;
 }
+.stock-table th:first-child { padding-left: 12px; border-radius: var(--radius-sm) 0 0 0; }
+.stock-table th:last-child { border-radius: 0 var(--radius-sm) 0 0; }
 .stock-table th.sortable { cursor: pointer; }
 .stock-table th.sortable:hover { color: var(--accent); }
-.sort-indicator { color: var(--accent); font-size: 11px; }
-.stock-table td { padding: 6px 6px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
-.data-row { cursor: pointer; }
-.data-row:hover { background: var(--bg-hover); }
-.stock-code { color: var(--accent); font-weight: 500; }
-.empty { text-align: center; color: var(--text-muted); padding: 40px 0; }
-.star-btn { cursor: pointer; color: var(--text-muted); font-size: 14px; }
+.sort-indicator { color: var(--accent); font-size: 11px; margin-left: 2px; }
+.stock-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
+.stock-table td:first-child { padding-left: 12px; }
+.data-row { cursor: pointer; transition: background var(--transition); }
+.data-row:hover { background: var(--accent-light); }
+.stock-code { color: var(--accent); font-weight: 600; letter-spacing: 0.02em; }
+.empty { text-align: center; color: var(--text-muted); padding: 60px 0; font-size: 14px; }
+.empty-icon { display: block; font-size: 32px; margin-bottom: 10px; opacity: 0.5; }
+.loading-cell { text-align: center; color: var(--accent); padding: 60px 0; font-size: 14px; font-weight: 500; }
+.loading-spinner {
+  display: inline-block; width: 18px; height: 18px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.star-btn { cursor: pointer; color: var(--text-muted); font-size: 15px; transition: all var(--transition); }
 .star-btn.active { color: #f59e0b; }
-.star-btn:hover { color: #f59e0b; }
+.star-btn:hover { color: #f59e0b; transform: scale(1.15); }
+
+/* Color coding */
+.num-up { color: var(--red) !important; font-weight: 500; }
+.num-down { color: var(--green) !important; font-weight: 500; }
 </style>

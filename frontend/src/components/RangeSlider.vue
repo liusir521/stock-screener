@@ -44,17 +44,24 @@ function onMaxChange(e: Event) {
 </template>
 
 <style scoped>
-.range-slider { margin-bottom: 12px; }
-.range-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+.range-slider { margin-bottom: 14px; }
+.range-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
 .range-label-group { display: flex; flex-direction: column; }
 .range-label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
-.range-hint { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
-.range-value { font-size: 12px; color: var(--accent); white-space: nowrap; }
+.range-hint { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+.range-value {
+  font-size: 12px; color: var(--accent); white-space: nowrap; font-weight: 600;
+  background: var(--accent-light); padding: 2px 8px; border-radius: 4px;
+}
 .range-inputs { display: flex; align-items: center; gap: 6px; }
 .range-input {
-  flex: 1; min-width: 0; padding: 4px 8px; border: 1px solid var(--border-strong);
-  border-radius: 4px; background: var(--bg-surface); color: var(--text-primary); font-size: 13px;
+  flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text-primary);
+  font-size: 13px; transition: all var(--transition);
 }
-.range-input:focus { outline: none; border-color: var(--accent); }
-.range-sep { color: var(--text-muted); font-size: 12px; flex-shrink: 0; }
+.range-input:focus {
+  outline: none; border-color: var(--accent); background: var(--bg-surface);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+}
+.range-sep { color: var(--text-muted); font-size: 12px; flex-shrink: 0; font-weight: 500; }
 </style>

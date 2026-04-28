@@ -27,13 +27,17 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.market-filter { margin-bottom: 14px; }
-.filter-group-title { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+.market-filter { margin-bottom: 16px; }
+.filter-group-title { font-weight: 700; font-size: 13px; color: var(--text-primary); margin-bottom: 6px; }
 .market-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .market-chip {
-  padding: 4px 12px; border: 1px solid var(--border-strong); border-radius: 4px;
-  background: var(--bg-surface); color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  padding: 5px 14px; border: 1px solid var(--border-strong); border-radius: 20px;
+  background: var(--bg-surface); color: var(--text-secondary); font-size: 12px;
+  cursor: pointer; font-weight: 500; transition: all var(--transition);
 }
-.market-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
-.market-chip:hover:not(.active) { background: var(--bg-hover); }
+.market-chip.active {
+  background: var(--accent); border-color: var(--accent); color: white;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+}
+.market-chip:hover:not(.active) { background: var(--bg-hover); color: var(--text-primary); }
 </style>

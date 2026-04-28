@@ -144,54 +144,95 @@ function handleRowClick(code: string) {
 
 <style>
 :root {
-  --bg-body: #f0f2f5;
+  --bg-body: #f1f5f9;
   --bg-surface: #ffffff;
   --bg-alt: #f8fafc;
   --bg-hover: #f1f5f9;
-  --text-primary: #1a1a2e;
-  --text-secondary: #64748b;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
   --text-muted: #94a3b8;
   --border: #e2e8f0;
   --border-strong: #cbd5e1;
   --accent: #3b82f6;
   --accent-hover: #2563eb;
   --accent-light: #eff6ff;
-  --shadow: rgba(0,0,0,0.08);
+  --shadow: rgba(0,0,0,0.06);
+  --shadow-lg: rgba(0,0,0,0.1);
+  --red: #ef4444;
+  --green: #22c55e;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --transition: 0.2s ease;
 }
 
 .dark {
-  --bg-body: #0b1120;
-  --bg-surface: #0f172a;
-  --bg-alt: #1e293b;
+  --bg-body: #0a0f1e;
+  --bg-surface: #111827;
+  --bg-alt: #1a2332;
   --bg-hover: #1e293b;
   --text-primary: #e2e8f0;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   --border: #1e293b;
-  --border-strong: #475569;
+  --border-strong: #334155;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
   --accent-light: #1e3a5f;
-  --shadow: rgba(0,0,0,0.4);
+  --shadow: rgba(0,0,0,0.3);
+  --shadow-lg: rgba(0,0,0,0.5);
+  --red: #f87171;
+  --green: #4ade80;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg-body); color: var(--text-primary); }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-body); color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.01em;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+/* Transition theme changes */
+.app-layout, .top-bar, .sidebar, .stock-table-container, .stock-table th,
+.drawer, .filter-group, .market-chip, .range-input, .keyword-input,
+.strategy-save-dialog, .pagination button, .column-picker-dropdown,
+.stock-table td, .detail-item, .daily-table th {
+  transition: background var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition);
+}
+
 .app-layout { display: flex; min-height: 100vh; }
 .main-content { flex: 1; display: flex; flex-direction: column; background: var(--bg-body); }
 .top-bar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 20px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  padding: 12px 24px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 3px var(--shadow);
 }
-.app-title { font-size: 16px; font-weight: 700; }
+.app-title {
+  font-size: 18px; font-weight: 800; letter-spacing: -0.01em;
+  background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 .top-bar-actions { display: flex; gap: 8px; align-items: center; }
 .refresh-btn {
-  padding: 4px 12px; border: 1px solid var(--accent); border-radius: 4px;
-  background: var(--accent-light); color: var(--accent); font-size: 12px; cursor: pointer;
+  padding: 6px 14px; border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  background: var(--accent-light); color: var(--accent); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all var(--transition);
 }
-.refresh-btn:hover { background: var(--accent); color: white; }
-.refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.refresh-btn:hover { background: var(--accent); color: white; box-shadow: 0 2px 8px rgba(59,130,246,0.3); }
+.refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .theme-toggle {
-  padding: 4px 12px; border: 1px solid var(--border-strong); border-radius: 4px;
-  background: var(--bg-surface); color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--bg-surface); color: var(--text-secondary); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all var(--transition);
 }
-.theme-toggle:hover { background: var(--bg-hover); }
+.theme-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
 </style>

@@ -4,3 +4,4 @@ __pycache__/
 node_modules/
 frontend/dist/
 frontend/.vite/
+.claude/settings.local.json

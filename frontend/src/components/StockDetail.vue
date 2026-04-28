@@ -203,6 +203,12 @@ function fmt(val: unknown, col?: string): string {
   return String(val)
 }
 
+function changeClass(val: unknown): string {
+  const n = Number(val)
+  if (isNaN(n) || n === 0) return ''
+  return n > 0 ? 'num-up' : 'num-down'
+}
+
 const BASIC_LABELS: Record<string, string> = {
   code: '代码', name: '名称', market: '板块', industry: '行业', list_date: '上市日期',
 }
@@ -273,7 +279,7 @@ function activeDays(count: number) {
               </thead>
               <tbody>
                 <tr v-for="(row, i) in detail.daily" :key="i">
-                  <td v-for="col in DAILY_COLUMNS" :key="col.key">{{ fmt(row[col.key], col.key) }}</td>
+                  <td v-for="col in DAILY_COLUMNS" :key="col.key" :class="col.key === 'change_pct' ? changeClass(row[col.key]) : ''">{{ fmt(row[col.key], col.key) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -286,45 +292,90 @@ function activeDays(count: number) {
 
 <style scoped>
 .drawer-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 100;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100;
   display: flex; justify-content: flex-end;
+  backdrop-filter: blur(2px);
 }
 .drawer {
-  width: 520px; height: 100%; background: var(--bg-surface); overflow-y: auto;
-  padding: 20px; border-left: 1px solid var(--border); box-shadow: -4px 0 20px var(--shadow);
+  width: 540px; height: 100%; background: var(--bg-surface); overflow-y: auto;
+  padding: 24px; border-left: 1px solid var(--border);
+  box-shadow: -8px 0 40px var(--shadow-lg);
+  animation: slideIn 0.25s ease;
 }
-.drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.drawer-header h3 { font-size: 18px; margin: 0; color: var(--text-primary); }
-.close-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; }
-.close-btn:hover { color: var(--text-secondary); }
-.drawer-loading { color: #f59e0b; text-align: center; padding: 40px 0; }
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.drawer-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+}
+.drawer-header h3 { font-size: 18px; margin: 0; color: var(--text-primary); font-weight: 700; }
+.close-btn {
+  background: none; border: none; color: var(--text-muted); font-size: 20px;
+  cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+.close-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.drawer-loading {
+  color: var(--accent); text-align: center; padding: 60px 0; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
 .drawer-body { font-size: 13px; }
-.detail-section { margin-bottom: 20px; }
-.section-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.detail-item { background: var(--bg-alt); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); }
-.detail-label { color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 2px; }
-.detail-value { color: var(--text-primary); font-weight: 500; }
+.detail-section { margin-bottom: 24px; }
+.section-title {
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+.section-title::before {
+  content: ''; display: inline-block; width: 3px; height: 14px;
+  background: var(--accent); border-radius: 2px;
+}
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.detail-item {
+  background: var(--bg-alt); padding: 10px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); transition: all var(--transition);
+}
+.detail-item:hover { border-color: var(--border-strong); box-shadow: 0 2px 6px var(--shadow); }
+.detail-label { color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 4px; font-weight: 500; }
+.detail-value { color: var(--text-primary); font-weight: 600; font-size: 14px; }
 
-.chart-container { width: 100%; height: 360px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); position: relative; }
+.chart-container {
+  width: 100%; height: 360px; border-radius: var(--radius);
+  overflow: hidden; border: 1px solid var(--border); position: relative;
+  background: var(--bg-surface);
+}
 .ma-legend {
-  display: flex; gap: 14px; justify-content: center; padding: 6px 0 0;
+  display: flex; gap: 20px; justify-content: center; padding: 10px 0 0;
   font-size: 12px; font-weight: 500;
 }
-.ma-item { display: inline-flex; align-items: center; gap: 2px; }
+.ma-item {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 4px; background: var(--bg-alt);
+  border: 1px solid var(--border);
+}
 
-.daily-table-wrap { max-height: 300px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
-.daily-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.daily-table-wrap {
+  max-height: 320px; overflow: auto; border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.daily-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .daily-table thead { position: sticky; top: 0; z-index: 1; }
 .daily-table th {
   background: var(--bg-alt); color: var(--text-secondary); font-weight: 600;
-  padding: 5px 6px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap;
+  padding: 7px 8px; text-align: right; border-bottom: 2px solid var(--border);
+  white-space: nowrap; font-size: 11px; letter-spacing: 0.02em;
 }
-.daily-table th:first-child { text-align: left; }
+.daily-table th:first-child { text-align: left; padding-left: 12px; }
 .daily-table td {
-  padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--border);
+  padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border);
   color: var(--text-primary); white-space: nowrap;
 }
-.daily-table td:first-child { text-align: left; color: var(--text-secondary); }
-.daily-table tbody tr:hover { background: var(--bg-hover); }
+.daily-table td:first-child { text-align: left; padding-left: 12px; color: var(--text-secondary); }
+.daily-table tbody tr { transition: background var(--transition); }
+.daily-table tbody tr:hover { background: var(--accent-light); }
+
+/* Color coding */
+.num-up { color: var(--red) !important; font-weight: 500; }
+.num-down { color: var(--green) !important; font-weight: 500; }
 </style>
