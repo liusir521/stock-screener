@@ -33,4 +33,5 @@ class StockDaily(Base):
     ma60: Mapped[float] = mapped_column(Float, default=0)
     macd_signal: Mapped[str] = mapped_column(Text, default="")
     market_cap: Mapped[float] = mapped_column(Float, default=0)
+    nmc: Mapped[float] = mapped_column(Float, default=0)
     dividend_yield: Mapped[float] = mapped_column(Float, default=0)

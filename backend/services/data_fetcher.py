@@ -84,6 +84,7 @@ def fetch_all_sina_data() -> pd.DataFrame:
             "pe_ttm": float(item.get("per", 0) or 0),
             "pb": float(item.get("pb", 0) or 0),
             "market_cap": float(item.get("mktcap", 0) or 0) / 1e4,  # 万元 -> 亿
+            "nmc": float(item.get("nmc", 0) or 0),  # 流通市值(万元)
             "roe": 0,
             "revenue_growth_3y": 0,
             "ma5": 0,

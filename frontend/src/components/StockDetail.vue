@@ -129,6 +129,7 @@ const DAILY_COLUMNS = [
   { key: 'low', label: '最低' },
   { key: 'close', label: '收盘' },
   { key: 'volume', label: '成交量(手)' },
+  { key: 'turnover_rate', label: '换手率(%)' },
 ]
 
 function activeDays(count: number) {
