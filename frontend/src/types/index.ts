@@ -33,7 +33,7 @@ export interface MarketOption {
 
 export interface Strategy {
   name: string
-  filters: Record<string, string>
+  filters: Record<string, string | number | boolean>
 }
 
 export interface StockDetail {
