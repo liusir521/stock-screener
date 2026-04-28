@@ -28,7 +28,16 @@ const technical = ref<Record<string, [number, number]>>({
 function handleKeywordSearch() {
   const kw = keyword.value.trim()
   if (!kw) return
-  handleReset()
+  // Reset filter state silently, then emit once (avoids race with handleReset's emit)
+  market.value = ''
+  fundamental.value = {
+    pe_ttm: PE_DEFAULT.slice() as [number, number],
+    pb: [0, 10],
+    roe: [0, 50],
+    market_cap: [0, 5000],
+    dividend_yield: [0, 10],
+  }
+  technical.value = { turnover_rate: [0, 20] }
   keyword.value = kw
   const params: Record<string, string> = {
     keyword: kw,

@@ -117,6 +117,45 @@ def fetch_daily_indicators(date: str | None = None) -> pd.DataFrame:
     return df[daily_cols]
 
 
+def _sina_symbol(code: str) -> str:
+    """Convert stock code to Sina symbol prefix (sh/sz)."""
+    return "sh" + code if code.startswith("6") else "sz" + code
+
+
+def fetch_kline_sina(code: str, days: int = 60) -> pd.DataFrame:
+    """Fetch daily K-line data for a single stock from Sina finance API.
+    Returns DataFrame with OHLCV columns.
+    """
+    import re
+    symbol = _sina_symbol(code)
+    url = "https://quotes.sina.cn/cn/api/jsonp_v2.php/data/CN_MarketDataService.getKLineData"
+    try:
+        r = requests.get(url, params={"symbol": symbol, "scale": "240", "ma": "no", "datalen": str(days)}, timeout=15)
+        r.raise_for_status()
+        # Strip JS comment prefix and JSONP wrapper: /*...*/data([...]);
+        text = r.text.strip()
+        text = re.sub(r'^/\*.*?\*/\s*', '', text)
+        m = re.match(r"^data\((.+)\);?\s*$", text)
+        if not m:
+            return pd.DataFrame()
+        items = __import__("json").loads(m.group(1))
+        df = pd.DataFrame(items)
+        df = df.rename(columns={
+            "day": "date",
+            "open": "open",
+            "high": "high",
+            "low": "low",
+            "close": "close",
+            "volume": "volume",
+        })
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        return df.tail(days)
+    except Exception:
+        return pd.DataFrame()
+
+
 def fetch_stock_history(code: str, days: int = 60) -> pd.DataFrame:
     """Fetch recent daily K-line data for a single stock using akshare."""
     from datetime import timedelta
@@ -130,7 +169,10 @@ def fetch_stock_history(code: str, days: int = 60) -> pd.DataFrame:
                                  adjust="qfq")
         df = df.rename(columns={
             "日期": "date",
+            "开盘": "open",
             "收盘": "close",
+            "最高": "high",
+            "最低": "low",
             "成交量": "volume",
             "换手率": "turnover_rate",
         })

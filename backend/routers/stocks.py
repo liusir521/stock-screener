@@ -45,18 +45,27 @@ def list_stocks(
 def stock_detail(code: str):
     from database import engine
     import pandas as pd
-
-    query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 60"
-    with engine.connect() as conn:
-        df = pd.read_sql_query(query, conn, params={"code": code})
+    from services.data_fetcher import fetch_kline_sina, fetch_stock_history
 
     basic_query = "SELECT * FROM stock_basic WHERE code = :code"
     with engine.connect() as conn:
         basic = pd.read_sql_query(basic_query, conn, params={"code": code})
 
+    # Try Sina K-line first, then akshare, then fallback to stock_daily
+    kline_df = fetch_kline_sina(code)
+    if kline_df.empty:
+        kline_df = fetch_stock_history(code)
+    daily_data = kline_df.where(kline_df.notna(), None).to_dict(orient="records") if not kline_df.empty else []
+
+    if not daily_data:
+        query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 60"
+        with engine.connect() as conn:
+            df = pd.read_sql_query(query, conn, params={"code": code})
+        daily_data = df.where(df.notna(), None).to_dict(orient="records")
+
     return {
         "basic": basic.to_dict(orient="records")[0] if len(basic) > 0 else None,
-        "daily": df.where(df.notna(), None).to_dict(orient="records"),
+        "daily": daily_data,
     }
 
 
