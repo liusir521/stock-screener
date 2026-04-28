@@ -19,7 +19,7 @@ def _load_strategies() -> list[dict]:
     if not STRATEGIES_FILE.exists():
         return _presets()
     try:
-        with open(STRATEGIES_FILE, "r") as f:
+        with open(STRATEGIES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return _presets()
@@ -36,7 +36,7 @@ def _presets() -> list[dict]:
 
 def _save_strategies(strategies: list[dict]):
     STRATEGIES_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(STRATEGIES_FILE, "w") as f:
+    with open(STRATEGIES_FILE, "w", encoding="utf-8") as f:
         json.dump(strategies, f, ensure_ascii=False, indent=2)
 
 
