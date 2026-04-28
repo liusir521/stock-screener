@@ -1,3 +1,6 @@
 __pycache__/
 *.py[cod]
 *.db
+node_modules/
+frontend/dist/
+frontend/.vite/
