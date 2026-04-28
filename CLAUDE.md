@@ -8,8 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 cd backend
 pip install -r ../requirements.txt
-python seed_data.py           # Pull data from Sina finance API, populate SQLite (~60s)
-uvicorn main:app --reload     # API at http://localhost:8000
+uvicorn main:app --reload     # API at http://localhost:8000 (auto-seeds on first startup)
 ```
 
 No test runner or linter is configured for the backend.
@@ -33,7 +32,7 @@ npm run build     # Type-check + production build
 - **`backend/services/data_fetcher.py`** — Data fetching. `fetch_all_sina_data()` pulls bulk A-share PE/PB/market-cap/turnover from Sina finance API; `fetch_stock_list()` gets the stock list; `fetch_stock_history()` gets individual K-line data via akshare.
 - **`backend/routers/stocks.py`** — `GET /api/stocks` (screening with query params), `GET /api/stocks/{code}` (detail with last 60 daily records), `GET /api/markets`.
 - **`backend/routers/strategies.py`** — `GET /api/strategies` (list saved + built-in presets), `POST /api/strategies` (save/overwrite a named strategy). Persisted to `data/strategies.json`.
-- **`backend/seed_data.py`** — One-shot seeding script: clears and repopulates both tables via Sina API.
+- **`backend/seed_data.py`** — Seeding module: populates both tables via Sina API. Called automatically on first startup (when DB is empty) and via `POST /api/refresh`. Also runnable standalone.
 
 Key design decisions:
 - Screening bypasses SQLAlchemy ORM: raw SQL to DataFrame, then pandas filtering in Python memory. This means all stock records are loaded on every request — the dataset is ~5000 rows, so this is fine.
