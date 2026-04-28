@@ -8,21 +8,43 @@ const emit = defineEmits<{
   search: [filters: Record<string, string>]
 }>()
 
+const keyword = ref('')
 const market = reactive({ value: '' })
 
-const fundamental = reactive<Record<string, [number, number]>>({
-  pe_ttm: [0, 100],
+const PE_DEFAULT: [number, number] = [-100, 500]
+
+const fundamental = ref<Record<string, [number, number]>>({
+  pe_ttm: PE_DEFAULT.slice() as [number, number],
   pb: [0, 10],
   roe: [0, 50],
   market_cap: [0, 5000],
   dividend_yield: [0, 10],
 })
 
-const technical = reactive<Record<string, [number, number]>>({
+const technical = ref<Record<string, [number, number]>>({
   turnover_rate: [0, 20],
 })
 
-function handleSearch() {
+function handleKeywordSearch() {
+  const kw = keyword.value.trim()
+  if (!kw) return
+  handleReset()
+  keyword.value = kw
+  const params: Record<string, string> = {
+    keyword: kw,
+    page: '1',
+    page_size: '50',
+  }
+  currentFilters.value = params
+  emit('search', params)
+}
+
+function clearKeyword() {
+  keyword.value = ''
+}
+
+function handleFilterSearch() {
+  clearKeyword()
   const params: Record<string, string> = {}
   if (market.value) params.market = market.value
   params.exclude_st = 'true'
@@ -32,11 +54,11 @@ function handleSearch() {
     if (range[1] !== defaults[1]) params[`${key}_max`] = String(range[1])
   }
 
-  addRange('pe', fundamental.pe_ttm, [0, 100])
-  addRange('pb', fundamental.pb, [0, 10])
-  addRange('roe', fundamental.roe, [0, 50])
-  addRange('market_cap', fundamental.market_cap, [0, 5000])
-  addRange('dividend_yield', fundamental.dividend_yield, [0, 10])
+  addRange('pe', fundamental.value.pe_ttm, PE_DEFAULT)
+  addRange('pb', fundamental.value.pb, [0, 10])
+  addRange('roe', fundamental.value.roe, [0, 50])
+  addRange('market_cap', fundamental.value.market_cap, [0, 5000])
+  addRange('dividend_yield', fundamental.value.dividend_yield, [0, 10])
 
   params.sort_by = currentFilters.value.sort_by || 'pe_ttm'
   params.order = currentFilters.value.order || 'asc'
@@ -49,37 +71,64 @@ function handleSearch() {
 
 const currentFilters = ref<Record<string, string>>({})
 
+function handleReset() {
+  keyword.value = ''
+  market.value = ''
+  fundamental.value = {
+    pe_ttm: PE_DEFAULT.slice() as [number, number],
+    pb: [0, 10],
+    roe: [0, 50],
+    market_cap: [0, 5000],
+    dividend_yield: [0, 10],
+  }
+  technical.value = { turnover_rate: [0, 20] }
+  currentFilters.value = {}
+  emit('search', {})
+}
+
 function handleLoadStrategy(filters: Record<string, string>) {
   if (filters.market) market.value = filters.market
   const numKeys = ['pe_min', 'pe_max', 'pb_min', 'pb_max', 'roe_min', 'market_cap_min', 'market_cap_max', 'dividend_yield_min']
   numKeys.forEach(k => {
     if (filters[k]) {
-      // Apply numeric filter values to reactive state
       const val = Number(filters[k])
       if (k.startsWith('pe_')) {
-        if (k === 'pe_min') fundamental.pe_ttm[0] = val
-        else fundamental.pe_ttm[1] = val
+        if (k === 'pe_min') fundamental.value.pe_ttm[0] = val
+        else fundamental.value.pe_ttm[1] = val
       } else if (k.startsWith('pb_')) {
-        if (k === 'pb_min') fundamental.pb[0] = val
-        else fundamental.pb[1] = val
-      } else if (k.startsWith('roe')) fundamental.roe[0] = val
+        if (k === 'pb_min') fundamental.value.pb[0] = val
+        else fundamental.value.pb[1] = val
+      } else if (k.startsWith('roe')) fundamental.value.roe[0] = val
       else if (k.startsWith('market_cap_')) {
-        if (k === 'market_cap_min') fundamental.market_cap[0] = val
-        else fundamental.market_cap[1] = val
-      } else if (k.startsWith('dividend_yield')) fundamental.dividend_yield[0] = val
+        if (k === 'market_cap_min') fundamental.value.market_cap[0] = val
+        else fundamental.value.market_cap[1] = val
+      } else if (k.startsWith('dividend_yield')) fundamental.value.dividend_yield[0] = val
     }
   })
-  handleSearch()
+  handleFilterSearch()
 }
 </script>
 
 <template>
   <aside class="sidebar">
     <h2 class="sidebar-title">筛选条件</h2>
+    <div class="keyword-search">
+      <div class="keyword-input-wrap">
+        <input
+          v-model="keyword"
+          type="text"
+          placeholder="搜索股票名称或代码"
+          class="keyword-input"
+          @keydown.enter.prevent="handleKeywordSearch"
+        />
+        <button v-if="keyword" class="keyword-clear" @click="clearKeyword">✕</button>
+      </div>
+      <button class="keyword-btn" @click="handleKeywordSearch">搜索</button>
+    </div>
     <MarketFilter v-model="market.value" />
     <FilterGroup title="基本面"
       :filters="[
-        { key: 'pe_ttm', label: 'PE (TTM)', min: 0, max: 500, step: 1 },
+        { key: 'pe_ttm', label: 'PE (TTM)', min: -100, max: 500, step: 1 },
         { key: 'pb', label: 'PB', min: 0, max: 20, step: 0.1 },
         { key: 'roe', label: 'ROE (%)', min: -50, max: 100, step: 1 },
         { key: 'market_cap', label: '市值（亿）', min: 0, max: 10000, step: 10 },
@@ -93,25 +142,47 @@ function handleLoadStrategy(filters: Record<string, string>) {
       ]"
       v-model="technical"
     />
-    <button class="search-btn" @click="handleSearch">筛选</button>
-    <button class="reset-btn" @click="$emit('search', {})">重置</button>
+    <button class="search-btn" @click="handleFilterSearch">筛选</button>
+    <button class="reset-btn" @click="handleReset">重置</button>
     <StrategySave :active-filters="currentFilters" @load="handleLoadStrategy" />
   </aside>
 </template>
 
 <style scoped>
 .sidebar {
-  width: 260px; flex-shrink: 0; background: #0f172a; padding: 16px;
-  border-right: 1px solid #1e293b; overflow-y: auto; height: 100vh;
+  width: 260px; flex-shrink: 0; background: var(--bg-surface); padding: 16px;
+  border-right: 1px solid var(--border); overflow-y: auto; height: 100vh;
 }
-.sidebar-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+.sidebar-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text-primary); }
+.keyword-search { display: flex; gap: 6px; margin-bottom: 14px; }
+.keyword-input-wrap { position: relative; flex: 1; }
+.keyword-input {
+  width: 100%; padding: 6px 28px 6px 10px; border: 1px solid var(--border-strong);
+  border-radius: 6px; background: var(--bg-surface); color: var(--text-primary);
+  font-size: 13px; outline: none;
+}
+.keyword-input:focus { border-color: var(--accent); }
+.keyword-input::placeholder { color: var(--text-muted); }
+.keyword-clear {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 14px; padding: 2px 4px; line-height: 1;
+}
+.keyword-clear:hover { color: var(--text-secondary); }
+.keyword-btn {
+  padding: 6px 12px; border: none; border-radius: 6px;
+  background: var(--accent); color: white; font-size: 13px; cursor: pointer;
+  white-space: nowrap; flex-shrink: 0;
+}
+.keyword-btn:hover { background: var(--accent-hover); }
 .search-btn {
-  width: 100%; padding: 8px; background: #3b82f6; color: white; border: none;
+  width: 100%; padding: 8px; background: var(--accent); color: white; border: none;
   border-radius: 6px; font-size: 14px; cursor: pointer; margin-bottom: 6px;
 }
-.search-btn:hover { background: #2563eb; }
+.search-btn:hover { background: var(--accent-hover); }
 .reset-btn {
-  width: 100%; padding: 6px; background: transparent; color: #94a3b8;
-  border: 1px solid #475569; border-radius: 6px; font-size: 12px; cursor: pointer;
+  width: 100%; padding: 6px; background: transparent; color: var(--text-secondary);
+  border: 1px solid var(--border-strong); border-radius: 6px; font-size: 12px; cursor: pointer;
 }
+.reset-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 </style>

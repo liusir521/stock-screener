@@ -58,37 +58,42 @@ function handleLoad(name: string) {
 </template>
 
 <style scoped>
-.strategy-section { margin-top: 8px; border-top: 1px solid #334155; padding-top: 10px; }
+.strategy-section { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
 .strategy-btns { display: flex; gap: 6px; margin-bottom: 8px; }
 .strategy-btn {
-  flex: 1; padding: 5px; border: 1px solid #475569; border-radius: 4px;
-  background: #1e293b; color: #94a3b8; font-size: 11px; cursor: pointer;
+  flex: 1; padding: 5px; border: 1px solid var(--border-strong); border-radius: 4px;
+  background: var(--bg-surface); color: var(--text-secondary); font-size: 11px; cursor: pointer;
 }
+.strategy-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .strategy-list { margin-bottom: 8px; }
 .strategy-item {
   padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;
-  border: 1px solid #334155; margin-bottom: 4px;
+  border: 1px solid var(--border); margin-bottom: 4px; color: var(--text-primary);
 }
-.strategy-item:hover { background: #1e3a5f; border-color: #3b82f6; color: #60a5fa; }
+.strategy-item:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
 .strategy-save-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200;
   display: flex; align-items: center; justify-content: center;
 }
 .strategy-save-dialog {
-  background: #1e293b; padding: 20px; border-radius: 8px; width: 300px;
+  background: var(--bg-surface); padding: 20px; border-radius: 8px; width: 300px;
+  box-shadow: 0 4px 20px var(--shadow);
 }
-.strategy-save-dialog h4 { margin-bottom: 12px; }
+.strategy-save-dialog h4 { margin-bottom: 12px; color: var(--text-primary); }
 .strategy-input {
-  width: 100%; padding: 6px 10px; border: 1px solid #475569; border-radius: 4px;
-  background: #0f172a; color: #e2e8f0; font-size: 13px; margin-bottom: 12px;
+  width: 100%; padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 4px;
+  background: var(--bg-surface); color: var(--text-primary); font-size: 13px; margin-bottom: 12px;
 }
+.strategy-input:focus { outline: none; border-color: var(--accent); }
 .strategy-save-btns { display: flex; gap: 8px; justify-content: flex-end; }
 .save-confirm-btn {
-  padding: 5px 16px; background: #3b82f6; color: white; border: none;
+  padding: 5px 16px; background: var(--accent); color: white; border: none;
   border-radius: 4px; cursor: pointer; font-size: 13px;
 }
+.save-confirm-btn:hover { background: var(--accent-hover); }
 .cancel-btn {
-  padding: 5px 16px; background: transparent; color: #94a3b8;
-  border: 1px solid #475569; border-radius: 4px; cursor: pointer; font-size: 13px;
+  padding: 5px 16px; background: transparent; color: var(--text-secondary);
+  border: 1px solid var(--border-strong); border-radius: 4px; cursor: pointer; font-size: 13px;
 }
+.cancel-btn:hover { background: var(--bg-hover); }
 </style>

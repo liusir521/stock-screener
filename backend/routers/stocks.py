@@ -8,6 +8,7 @@ router = APIRouter(prefix="/api")
 
 @router.get("/stocks")
 def list_stocks(
+    keyword: str | None = Query(None),
     market: str | None = Query(None),
     pe_min: float | None = Query(None),
     pe_max: float | None = Query(None),
@@ -25,7 +26,7 @@ def list_stocks(
     page_size: int = Query(50, ge=1, le=200),
 ):
     filters = {k: v for k, v in {
-        "market": market, "pe_min": pe_min, "pe_max": pe_max,
+        "keyword": keyword, "market": market, "pe_min": pe_min, "pe_max": pe_max,
         "pb_min": pb_min, "pb_max": pb_max, "roe_min": roe_min,
         "market_cap_min": market_cap_min, "market_cap_max": market_cap_max,
         "dividend_yield_min": dividend_yield_min,

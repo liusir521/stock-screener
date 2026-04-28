@@ -28,11 +28,12 @@ onMounted(async () => {
 
 <style scoped>
 .market-filter { margin-bottom: 14px; }
-.filter-group-title { font-weight: 600; font-size: 13px; }
+.filter-group-title { font-weight: 600; font-size: 13px; color: var(--text-primary); }
 .market-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .market-chip {
-  padding: 4px 12px; border: 1px solid #475569; border-radius: 4px;
-  background: #1e293b; color: #94a3b8; font-size: 12px; cursor: pointer;
+  padding: 4px 12px; border: 1px solid var(--border-strong); border-radius: 4px;
+  background: var(--bg-surface); color: var(--text-secondary); font-size: 12px; cursor: pointer;
 }
-.market-chip.active { background: #1e3a5f; border-color: #3b82f6; color: #60a5fa; }
+.market-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.market-chip:hover:not(.active) { background: var(--bg-hover); }
 </style>

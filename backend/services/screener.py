@@ -23,6 +23,12 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     """Apply screening conditions. Returns filtered DataFrame."""
     result = df.copy()
 
+    # Keyword search (name or code)
+    if filters.get("keyword"):
+        kw = filters["keyword"]
+        result = result[result["code"].str.contains(kw, case=False, na=False) |
+                        result["name"].str.contains(kw, case=False, na=False)]
+
     # Market filter
     if filters.get("market"):
         result = result[result["market"] == filters["market"]]

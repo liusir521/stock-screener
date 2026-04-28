@@ -1,19 +1,25 @@
-"""One-shot script: pull data from akshare and populate SQLite tables."""
+"""One-shot script: pull data from Sina and populate SQLite tables."""
 from database import SessionLocal, init_db
 from models import StockBasic, StockDaily
-from services.data_fetcher import fetch_stock_list, fetch_daily_indicators
+from services.data_fetcher import fetch_all_sina_data
 
 
 def seed():
     init_db()
     session = SessionLocal()
 
+    df = fetch_all_sina_data()
+    if df.empty:
+        print("No data fetched. Check network connectivity to Sina.")
+        return
+
     # Seed stock_basic
-    basic_df = fetch_stock_list()
-    for _, row in basic_df.iterrows():
+    basic_count = 0
+    for _, row in df.iterrows():
         existing = session.get(StockBasic, row["code"])
         if existing:
             existing.name = row["name"]
+            existing.market = row["market"]
             existing.is_st = row["is_st"]
         else:
             session.add(StockBasic(
@@ -21,16 +27,15 @@ def seed():
                 industry=row["industry"], list_date=row["list_date"],
                 is_st=row["is_st"],
             ))
+        basic_count += 1
     session.commit()
-    print(f"Seeded {len(basic_df)} stocks in stock_basic")
+    print(f"Seeded {basic_count} stocks in stock_basic")
 
     # Seed stock_daily
-    daily_df = fetch_daily_indicators()
-    count = 0
-    for _, row in daily_df.iterrows():
-        code = str(row["code"])
+    daily_count = 0
+    for _, row in df.iterrows():
         session.merge(StockDaily(
-            code=code, date=row["date"], close=row["close"],
+            code=row["code"], date=row["date"], close=row["close"],
             volume=row["volume"], turnover_rate=row["turnover_rate"],
             pe_ttm=row["pe_ttm"], pb=row["pb"], roe=row["roe"],
             revenue_growth_3y=row["revenue_growth_3y"],
@@ -38,9 +43,9 @@ def seed():
             macd_signal=row["macd_signal"], market_cap=row["market_cap"],
             dividend_yield=row["dividend_yield"],
         ))
-        count += 1
+        daily_count += 1
     session.commit()
-    print(f"Seeded {count} daily records")
+    print(f"Seeded {daily_count} daily records")
 
     session.close()
 
