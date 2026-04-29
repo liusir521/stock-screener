@@ -30,20 +30,24 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         result = result[result["code"].str.contains(kw, case=False, na=False) |
                         result["name"].str.contains(kw, case=False, na=False)]
 
-    # Industry filter (from sector ranking click — tries THS constituent API first)
+    # Industry filter (from sector ranking click)
     if filters.get("industry"):
         ind_val = filters["industry"]
-        # If value looks like a THS industry code (digits), use constituent API
-        if ind_val.isdigit():
+        ind_name = filters.get("industry_name", "")
+        search_name = ind_name or ind_val
+
+        # Step 1: if it's a BKxxxx东方财富 board code, try constituent API
+        codes: set[str] = set()
+        if ind_val.startswith("BK"):
             from services.data_fetcher import fetch_industry_stocks
             codes = set(fetch_industry_stocks(ind_val))
-            if codes:
-                result = result[result["code"].isin(codes)]
-            else:
-                # Fallback to name matching
-                result = result[result["industry"].str.contains(ind_val, case=False, na=False)]
+
+        if codes:
+            result = result[result["code"].isin(codes)]
         else:
-            result = result[result["industry"].str.contains(ind_val, case=False, na=False)]
+            # Step 2: fall back to keyword search
+            result = result[result["code"].str.contains(search_name, case=False, na=False) |
+                            result["name"].str.contains(search_name, case=False, na=False)]
 
     # Market filter (supports comma-separated multi-select)
     if filters.get("market"):

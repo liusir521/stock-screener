@@ -331,8 +331,7 @@ _sector_cache: dict[str, tuple[float, list[dict]]] = {}
 
 
 def fetch_sector_ranking() -> list[dict]:
-    """Fetch industry sector performance ranking from akshare THS.
-    Returns list of {name, change_pct, turnover_rate, lead_stock, lead_stock_change}. Cached 60s."""
+    """Fetch industry sector performance ranking from东方财富. Cached 60s."""
     import time
     import akshare as ak
 
@@ -342,30 +341,17 @@ def fetch_sector_ranking() -> list[dict]:
         return entry[1]
 
     try:
-        df = ak.stock_board_industry_summary_ths()
+        df = ak.stock_board_industry_name_em()
         if df.empty:
             return []
-        # akshare column names vary across versions — map both common variants
-        rename_map: dict[str, str] = {}
-        for col in df.columns:
-            c = str(col)
-            if c in ("板块名称", "板块", "行业名称", "name"):
-                rename_map[c] = "name"
-            elif c in ("板块代码", "代码", "code", "symbol"):
-                rename_map[c] = "code"
-            elif c in ("涨跌幅", "涨幅", "change_pct"):
-                rename_map[c] = "change_pct"
-            elif c in ("换手率", "turnover_rate"):
-                rename_map[c] = "turnover_rate"
-            elif c in ("领涨股票", "领涨股", "lead_stock"):
-                rename_map[c] = "lead_stock"
-            elif c in ("领涨股票-涨跌幅", "领涨股-涨跌幅", "领涨涨幅", "lead_stock_change"):
-                rename_map[c] = "lead_stock_change"
-        if rename_map:
-            df = df.rename(columns=rename_map)
-        cols = ["code", "name", "change_pct", "turnover_rate", "lead_stock", "lead_stock_change"]
-        result = df[[c for c in cols if c in df.columns]].to_dict(orient="records")
-        # Convert numeric strings
+        cols_map = {
+            "板块名称": "name", "板块代码": "code",
+            "涨跌幅": "change_pct", "换手率": "turnover_rate",
+            "领涨股票": "lead_stock", "领涨股票-涨跌幅": "lead_stock_change",
+        }
+        df = df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns})
+        out_cols = ["code", "name", "change_pct", "turnover_rate", "lead_stock", "lead_stock_change"]
+        result = df[[c for c in out_cols if c in df.columns]].to_dict(orient="records")
         for r in result:
             for k in ("change_pct", "turnover_rate", "lead_stock_change"):
                 if k in r:
@@ -384,26 +370,26 @@ def fetch_sector_ranking() -> list[dict]:
 _industry_stocks_cache: dict[str, tuple[float, list[str]]] = {}
 
 
-def fetch_industry_stocks(industry_code: str) -> list[str]:
-    """Get stock codes belonging to a THS industry board. Cached 300s."""
+def fetch_industry_stocks(board_code: str) -> list[str]:
+    """Get stock codes in an东方财富 industry board. Cached 300s."""
     import time
     import akshare as ak
 
     now = time.time()
-    entry = _industry_stocks_cache.get(industry_code)
+    entry = _industry_stocks_cache.get(board_code)
     if entry and now - entry[0] < 300:
         return entry[1]
 
     try:
-        df = ak.stock_board_industry_cons_ths(symbol=industry_code)
+        df = ak.stock_board_industry_cons_em(symbol=board_code)
         if df.empty:
             return []
         code_col = "代码" if "代码" in df.columns else df.columns[0]
         result = df[code_col].astype(str).tolist()
-        _industry_stocks_cache[industry_code] = (now, result)
+        _industry_stocks_cache[board_code] = (now, result)
         return result
     except Exception:
-        entry = _industry_stocks_cache.get(industry_code)
+        entry = _industry_stocks_cache.get(board_code)
         return entry[1] if entry else []
 
 
