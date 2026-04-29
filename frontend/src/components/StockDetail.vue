@@ -52,9 +52,9 @@ watch(() => props.code, async (newCode) => {
 })
 
 const chartContainer = ref<HTMLDivElement>()
-const macdContainer = ref<HTMLDivElement>()
 let chart: IChartApi | null = null
 let macdChart: IChartApi | null = null
+let macdChartEl: HTMLDivElement | null = null
 const maLastValues = ref<{ ma5: string; ma20: string; ma60: string }>({ ma5: '-', ma20: '-', ma60: '-' })
 const macdLastValues = ref<{ dif: string; dea: string; macd: string }>({ dif: '-', dea: '-', macd: '-' })
 
@@ -220,9 +220,10 @@ function renderCharts() {
   }
 
   // MACD chart (separate pane below price chart)
-  if (macdContainer.value) {
+  macdChartEl = document.getElementById('macd-chart-area') as HTMLDivElement | null
+  if (macdChartEl) {
     try {
-      macdChart = createChart(macdContainer.value!, {
+      macdChart = createChart(macdChartEl, {
         height: 140,
         layout: { background: { color: colors.bg }, textColor: colors.text },
         grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
@@ -258,7 +259,7 @@ function renderCharts() {
         color: v >= 0 ? macdColors.barUp : macdColors.barDown,
       })))
 
-      macdContainer.value!.querySelectorAll('a').forEach(el => {
+      macdChartEl.querySelectorAll('a').forEach(el => {
         if (el.href && el.href.includes('tradingview')) el.remove()
       })
     } catch (e) {
@@ -352,7 +353,7 @@ function activeDays(count: number) {
             <span class="ma-item" style="color: #a855f7">MA60: {{ maLastValues.ma60 }}</span>
           </div>
           <h4 class="section-title" style="margin-top: 16px;">MACD</h4>
-          <div ref="macdContainer" class="macd-chart-container"></div>
+          <div class="macd-chart-container" id="macd-chart-area"></div>
           <div class="ma-legend">
             <span class="ma-item" style="color: #f59e0b">DIF: {{ macdLastValues.dif }}</span>
             <span class="ma-item" style="color: #3b82f6">DEA: {{ macdLastValues.dea }}</span>
