@@ -30,6 +30,10 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         result = result[result["code"].str.contains(kw, case=False, na=False) |
                         result["name"].str.contains(kw, case=False, na=False)]
 
+    # Industry filter (from sector ranking click)
+    if filters.get("industry"):
+        result = result[result["industry"].str.contains(filters["industry"], case=False, na=False)]
+
     # Market filter (supports comma-separated multi-select)
     if filters.get("market"):
         markets = [m.strip() for m in filters["market"].split(",") if m.strip()]

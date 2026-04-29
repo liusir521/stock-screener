@@ -119,7 +119,7 @@ function handleRowClick(code: string) {
 
 function handleSectorSelect(name: string) {
   activeTab.value = 'stocks'
-  handleSearch({ keyword: name })
+  handleSearch({ industry: name })
 }
 
 function handleStockFromLimit(code: string) {
