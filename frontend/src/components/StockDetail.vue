@@ -220,7 +220,9 @@ function renderCharts() {
   }
 
   // MACD chart (separate pane below price chart)
-  const macdEl = macdContainer.value || (chartContainer.value?.parentElement?.querySelector('.macd-chart') as HTMLDivElement | null)
+  const macdEl = macdContainer.value
+    || document.getElementById('macd-chart-container') as HTMLDivElement | null
+    || chartContainer.value?.parentElement?.querySelector('.macd-chart') as HTMLDivElement | null
   if (macdEl) {
     try {
       macdChart = createChart(macdEl, {
@@ -353,7 +355,7 @@ function activeDays(count: number) {
             <span class="ma-item" style="color: #a855f7">MA60: {{ maLastValues.ma60 }}</span>
           </div>
           <h4 class="section-title" style="margin-top: 16px;">MACD</h4>
-          <div ref="macdContainer" class="chart-container macd-chart"></div>
+          <div ref="macdContainer" id="macd-chart-container" class="chart-container macd-chart"></div>
           <div class="ma-legend">
             <span class="ma-item" style="color: #f59e0b">DIF: {{ macdLastValues.dif }}</span>
             <span class="ma-item" style="color: #3b82f6">DEA: {{ macdLastValues.dea }}</span>
