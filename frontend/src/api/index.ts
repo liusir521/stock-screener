@@ -32,5 +32,5 @@ export const api = {
     post<{ status: string }>(`${BASE}/strategies`, { name, filters }),
   refreshData: () => post<{ status: string; basic_count?: number; daily_count?: number; reason?: string; message?: string }>(`${BASE}/refresh`, {}),
   getConcepts: () => get<{ concepts: { concept_name: string; stock_count: number }[] }>(`${BASE}/concepts`),
-  getStockIntraday: (code: string) => get<{ bars: Record<string, unknown>[]; prev_close: number | null }>(`${BASE}/stocks/${code}/intraday`),
+  getStockIntraday: (code: string) => get<{ bars: Record<string, unknown>[]; prev_close: number | null; float_shares: number }>(`${BASE}/stocks/${code}/intraday`),
 }

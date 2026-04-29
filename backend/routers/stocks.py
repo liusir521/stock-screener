@@ -112,21 +112,24 @@ def stock_intraday(code: str):
     bars_df = fetch_intraday_sina(code)
     bars = bars_df.where(bars_df.notna(), None).to_dict(orient="records") if not bars_df.empty else []
 
-    # Get prev_close from yesterday's stock_daily row
+    # Get prev_close and float_shares from stock_daily
     prev_close = None
+    float_shares = 0
     try:
         import pandas as pd
-        query = "SELECT close FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 2"
+        query = "SELECT close, float_shares FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 2"
         with engine.connect() as conn:
             df = pd.read_sql_query(query, conn, params={"code": code})
         if len(df) >= 2:
             prev_close = float(df.iloc[1]["close"])
+            float_shares = float(df.iloc[1].get("float_shares") or 0)
         elif len(df) == 1:
             prev_close = float(df.iloc[0]["close"])
+            float_shares = float(df.iloc[0].get("float_shares") or 0)
     except Exception:
         pass
 
-    return {"bars": bars, "prev_close": prev_close}
+    return {"bars": bars, "prev_close": prev_close, "float_shares": float_shares}
 
 
 @router.get("/concepts")
