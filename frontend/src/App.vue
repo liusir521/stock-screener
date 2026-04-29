@@ -128,7 +128,6 @@ function handleRowClick(code: string) {
 }
 
 function handleSectorSelect(code: string, name: string) {
-  activeTab.value = 'stocks'
   handleSearch(code ? { industry: code, industry_name: name } : { industry: name })
 }
 
@@ -137,7 +136,6 @@ function handleStockFromLimit(code: string) {
 }
 
 function handleApplyStrategy(filters: Record<string, unknown>) {
-  activeTab.value = 'stocks'
   const params: Record<string, string> = {}
   for (const [k, v] of Object.entries(filters)) {
     if (v !== undefined && v !== null && v !== '') {
