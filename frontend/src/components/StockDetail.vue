@@ -221,50 +221,50 @@ function renderCharts() {
 
   // MACD chart (separate pane below price chart)
   if (macdContainer.value) {
-    macdChart = createChart(macdContainer.value, {
-      height: 140,
-      layout: { background: { color: colors.bg }, textColor: colors.text },
-      grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
-      crosshair: { mode: CrosshairMode.Normal },
-      timeScale: { borderColor: colors.grid, timeVisible: false },
-      rightPriceScale: { borderColor: colors.grid, visible: true, autoScale: true },
-      leftPriceScale: { visible: false },
-    })
+    try {
+      macdChart = createChart(macdContainer.value, {
+        height: 140,
+        layout: { background: { color: colors.bg }, textColor: colors.text },
+        grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
+        timeScale: { borderColor: colors.grid, timeVisible: false },
+        leftPriceScale: { borderColor: colors.grid, visible: true },
+        rightPriceScale: { visible: false },
+      })
 
-    // Sync MACD time scale to follow price chart
-    const priceTimeScale = chart!.timeScale()
-    const macdTimeScale = macdChart.timeScale()
-    const visibleRange = priceTimeScale.getVisibleRange()
-    if (visibleRange) macdTimeScale.setVisibleRange(visibleRange)
-    priceTimeScale.subscribeVisibleTimeRangeChange(range => {
-      if (range && macdChart) macdTimeScale.setVisibleRange(range)
-    })
+      const priceTimeScale = chart!.timeScale()
+      const macdTimeScale = macdChart.timeScale()
+      const visibleRange = priceTimeScale.getVisibleRange()
+      if (visibleRange) macdTimeScale.setVisibleRange(visibleRange)
+      priceTimeScale.subscribeVisibleTimeRangeChange(range => {
+        if (range && macdChart) macdTimeScale.setVisibleRange(range)
+      })
 
-    const macdColors = { dif: '#f59e0b', dea: '#3b82f6', barUp: '#ef4444', barDown: '#22c55e' }
+      const macdColors = { dif: '#f59e0b', dea: '#3b82f6', barUp: '#ef4444', barDown: '#22c55e' }
 
-    const difSeries = macdChart.addSeries(LineSeries, {
-      color: macdColors.dif, lineWidth: 1, priceScaleId: 'right', lastValueVisible: false,
-    })
-    difSeries.setData(dif.map((v, i) => ({ time: String(chronological[i].date), value: v })))
+      const difSeries = macdChart.addSeries(LineSeries, {
+        color: macdColors.dif, lineWidth: 1, lastValueVisible: false,
+      })
+      difSeries.setData(dif.map((v, i) => ({ time: String(chronological[i].date), value: v })))
 
-    const deaSeries = macdChart.addSeries(LineSeries, {
-      color: macdColors.dea, lineWidth: 1, priceScaleId: 'right', lastValueVisible: false,
-    })
-    deaSeries.setData(dea.map((v, i) => ({ time: String(chronological[i].date), value: v })))
+      const deaSeries = macdChart.addSeries(LineSeries, {
+        color: macdColors.dea, lineWidth: 1, lastValueVisible: false,
+      })
+      deaSeries.setData(dea.map((v, i) => ({ time: String(chronological[i].date), value: v })))
 
-    const macdSeries = macdChart.addSeries(HistogramSeries, {
-      priceScaleId: 'right',
-    })
-    macdSeries.setData(macdBars.map((v, i) => ({
-      time: String(chronological[i].date),
-      value: v,
-      color: v >= 0 ? macdColors.barUp : macdColors.barDown,
-    })))
+      const macdSeries = macdChart.addSeries(HistogramSeries, {})
+      macdSeries.setData(macdBars.map((v, i) => ({
+        time: String(chronological[i].date),
+        value: v,
+        color: v >= 0 ? macdColors.barUp : macdColors.barDown,
+      })))
 
-    // Remove branding link in MACD chart
-    macdContainer.value.querySelectorAll('a').forEach(el => {
-      if (el.href && el.href.includes('tradingview')) el.remove()
-    })
+      macdContainer.value.querySelectorAll('a').forEach(el => {
+        if (el.href && el.href.includes('tradingview')) el.remove()
+      })
+    } catch (e) {
+      console.error('MACD chart creation failed:', e)
+      if (macdChart) { macdChart.remove(); macdChart = null }
+    }
   }
 
   // ResizeObserver for responsive chart
