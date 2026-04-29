@@ -117,15 +117,22 @@ def stock_intraday(code: str):
     float_shares = 0
     try:
         import pandas as pd
+        # Get last 2 rows for prev_close, and any row with valid float_shares
         query = "SELECT close, float_shares FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 2"
         with engine.connect() as conn:
             df = pd.read_sql_query(query, conn, params={"code": code})
         if len(df) >= 2:
             prev_close = float(df.iloc[1]["close"])
-            float_shares = float(df.iloc[1].get("float_shares") or 0)
         elif len(df) == 1:
             prev_close = float(df.iloc[0]["close"])
-            float_shares = float(df.iloc[0].get("float_shares") or 0)
+        # float_shares should be the same across rows — use most recent non-zero
+        for i in range(len(df)):
+            fs = df.iloc[i].get("float_shares")
+            if fs and (not isinstance(fs, float) or fs == fs):  # not NaN
+                v = float(fs)
+                if v > 0:
+                    float_shares = v
+                    break
     except Exception:
         pass
 
