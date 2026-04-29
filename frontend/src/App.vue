@@ -3,9 +3,12 @@ import { ref, computed, onMounted } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import StockTable from './components/StockTable.vue'
 import StockDetail from './components/StockDetail.vue'
+import SectorRanking from './components/SectorRanking.vue'
+import LimitStats from './components/LimitStats.vue'
 import { api } from './api'
 import { useWatchlist } from './composables/useWatchlist'
 
+const activeTab = ref<'stocks' | 'sectors' | 'limit'>('stocks')
 const isDark = ref(false)
 
 function toggleTheme() {
@@ -113,6 +116,15 @@ async function handleRefresh() {
 function handleRowClick(code: string) {
   selectedCode.value = code
 }
+
+function handleSectorSelect(name: string) {
+  activeTab.value = 'stocks'
+  handleSearch({ keyword: name })
+}
+
+function handleStockFromLimit(code: string) {
+  selectedCode.value = code
+}
 </script>
 
 <template>
@@ -130,13 +142,23 @@ function handleRowClick(code: string) {
           </button>
         </div>
       </div>
-      <StockTable
+      <div class="tab-bar">
+        <button
+          v-for="t in (['stocks', 'sectors', 'limit'] as const)"
+          :key="t"
+          :class="['tab-btn', { active: activeTab === t }]"
+          @click="activeTab = t"
+        >{{ { stocks: '股票筛选', sectors: '板块排名', limit: '涨跌停板' }[t] }}</button>
+      </div>
+      <StockTable v-if="activeTab === 'stocks'"
         :items="displayItems" :total="total" :loading="loading"
         :current-page="currentPage" :sort-by="sortBy" :sort-order="sortOrder"
         :favorites="watchlist.codes.value"
         @page-change="handlePageChange" @sort-change="handleSortChange"
         @row-click="handleRowClick" @toggle-favorite="watchlist.toggle"
       />
+      <SectorRanking v-else-if="activeTab === 'sectors'" @select-sector="handleSectorSelect" />
+      <LimitStats v-else-if="activeTab === 'limit'" @select-stock="handleStockFromLimit" />
     </main>
     <StockDetail :code="selectedCode" @close="selectedCode = null" />
   </div>
@@ -235,4 +257,15 @@ body {
   cursor: pointer; transition: all var(--transition);
 }
 .theme-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+.tab-bar {
+  display: flex; gap: 0; background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+.tab-btn {
+  padding: 10px 20px; border: none; background: transparent; color: var(--text-secondary);
+  font-size: 13px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all var(--transition);
+}
+.tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 </style>

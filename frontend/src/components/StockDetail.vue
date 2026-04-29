@@ -9,6 +9,8 @@ const emit = defineEmits<{ close: [] }>()
 const detail = ref<{ basic: Record<string, unknown> | null; daily: Record<string, unknown>[] }>({ basic: null, daily: [] })
 const intradayBars = ref<Record<string, unknown>[]>([])
 const intradayPrevClose = ref<number | null>(null)
+const klinePeriod = ref<'daily' | 'weekly' | 'monthly'>('daily')
+const klineData = ref<Record<string, unknown>[]>([])
 const loading = ref(false)
 
 let themeObserver: MutationObserver | null = null
@@ -132,11 +134,13 @@ function updateChartTheme() {
 
 function renderCharts() {
   destroyChart()
-  const daily = detail.value.daily
-  if (!daily.length) return
+  const source = klinePeriod.value === 'daily'
+    ? detail.value.daily
+    : klineData.value
+  if (!source.length) return
   if (!chartContainer.value) return
 
-  const hasOHLC = daily[0] && 'open' in daily[0]
+  const hasOHLC = source[0] && 'open' in source[0]
   if (!hasOHLC) return
 
   const colors = chartColors()
@@ -161,8 +165,10 @@ function renderCharts() {
     if (el.href && el.href.includes('tradingview')) el.remove()
   })
 
-  // Chart expects chronological order (oldest first)
-  const chronological = [...daily].reverse()
+  // Chart expects chronological order (oldest first) — daily is newest-first, klineData is oldest-first
+  const chronological = klinePeriod.value === 'daily'
+    ? [...source].reverse()
+    : [...source]
 
   const candleSeries = chart.addSeries(CandlestickSeries, {
     upColor: colors.up, downColor: colors.down,
@@ -397,6 +403,25 @@ function renderIntradayChart() {
   ro.observe(el)
 }
 
+async function switchKlinePeriod(period: 'daily' | 'weekly' | 'monthly') {
+  if (period === klinePeriod.value) return
+  klinePeriod.value = period
+  if (period === 'daily') {
+    klineData.value = []
+    await nextTick()
+    renderCharts()
+    return
+  }
+  try {
+    const data = await api.getStockKline(props.code!, period)
+    klineData.value = data.kline
+    await nextTick()
+    renderCharts()
+  } catch (e) {
+    console.error('Failed to fetch kline:', e)
+  }
+}
+
 function fmt(val: unknown, col?: string): string {
   if (val === null || val === undefined) return '-'
   if (col === 'change_pct') {
@@ -462,7 +487,7 @@ function activeDays(count: number) {
           </div>
         </section>
 
-        <section v-if="intradayBars.length" class="detail-section">
+        <section v-if="intradayBars.length && klinePeriod === 'daily'" class="detail-section">
           <h4 class="section-title">分时图</h4>
           <div class="intraday-chart-container" id="intraday-chart-area"></div>
           <div class="ma-legend">
@@ -479,7 +504,17 @@ function activeDays(count: number) {
         </section>
 
         <section v-if="detail.daily.length" class="detail-section">
-          <h4 class="section-title">K线图</h4>
+          <div class="kline-header">
+            <h4 class="section-title">K线图</h4>
+            <div class="period-selector">
+              <button
+                v-for="p in (['daily', 'weekly', 'monthly'] as const)"
+                :key="p"
+                :class="['period-btn', { active: klinePeriod === p }]"
+                @click="switchKlinePeriod(p)"
+              >{{ { daily: '日K', weekly: '周K', monthly: '月K' }[p] }}</button>
+            </div>
+          </div>
           <div ref="chartContainer" class="chart-container"></div>
           <div class="ma-legend">
             <span class="ma-item" style="color: #f59e0b">MA5: {{ maLastValues.ma5 }}</span>
@@ -607,6 +642,21 @@ function activeDays(count: number) {
 .daily-table td:first-child { text-align: left; padding-left: 12px; color: var(--text-secondary); }
 .daily-table tbody tr { transition: background var(--transition); }
 .daily-table tbody tr:hover { background: var(--accent-light); }
+
+.kline-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+}
+.period-selector { display: flex; gap: 4px; }
+.period-btn {
+  padding: 4px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--bg-alt); color: var(--text-secondary); font-size: 11px;
+  cursor: pointer; font-weight: 500; transition: all var(--transition);
+}
+.period-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+.period-btn.active {
+  background: var(--accent); color: white; border-color: var(--accent);
+}
 
 /* Color coding */
 .num-up { color: var(--red) !important; font-weight: 500; }

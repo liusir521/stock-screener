@@ -38,6 +38,10 @@ export const api = {
     post<{ status: string }>(`${BASE}/strategies`, { name, filters, description: description || '' }),
   deleteStrategy: (name: string) => del<{ status: string }>(`${BASE}/strategies/${encodeURIComponent(name)}`),
   refreshData: () => post<{ status: string; basic_count?: number; daily_count?: number; reason?: string; message?: string }>(`${BASE}/refresh`, {}),
+  getStockKline: (code: string, period?: string) =>
+    get<{ kline: Record<string, unknown>[]; period: string }>(`${BASE}/stocks/${code}/kline`, period ? { period } : undefined),
   getConcepts: () => get<{ concepts: { concept_name: string; stock_count: number }[] }>(`${BASE}/concepts`),
   getStockIntraday: (code: string) => get<{ bars: Record<string, unknown>[]; prev_close: number | null; float_shares: number; turnover_rate: number | null }>(`${BASE}/stocks/${code}/intraday`),
+  getSectors: () => get<{ sectors: Record<string, unknown>[]; count: number }>(`${BASE}/sectors`),
+  getLimitStats: () => get<{ zt_count: number; dt_count: number; zt_list: Record<string, unknown>[]; dt_list: Record<string, unknown>[] }>(`${BASE}/limit-stats`),
 }

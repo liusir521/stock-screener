@@ -145,6 +145,14 @@ def stock_intraday(code: str):
     return {"bars": bars, "prev_close": prev_close, "float_shares": float_shares, "turnover_rate": turnover_rate}
 
 
+@router.get("/stocks/{code}/kline")
+def stock_kline(code: str, period: str = Query("daily", pattern="^(daily|weekly|monthly)$")):
+    from services.data_fetcher import fetch_stock_history_period
+    df = fetch_stock_history_period(code, period)
+    kline_data = df.where(df.notna(), None).to_dict(orient="records") if not df.empty else []
+    return {"kline": kline_data, "period": period}
+
+
 @router.get("/concepts")
 def list_concepts():
     from database import engine
@@ -157,6 +165,21 @@ def list_concepts():
         return {"concepts": df.to_dict(orient="records")}
     except Exception:
         return {"concepts": []}
+
+
+@router.get("/sectors")
+def list_sectors():
+    from services.data_fetcher import fetch_sector_ranking
+    sectors = fetch_sector_ranking()
+    return {"sectors": sectors, "count": len(sectors)}
+
+
+@router.get("/limit-stats")
+def limit_stats():
+    from services.data_fetcher import fetch_limit_stats
+    stats = fetch_limit_stats()
+    return {"zt_count": len(stats["zt_list"]), "dt_count": len(stats["dt_list"]),
+            "zt_list": stats["zt_list"], "dt_list": stats["dt_list"]}
 
 
 @router.get("/markets")

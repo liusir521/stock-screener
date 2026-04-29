@@ -227,6 +227,33 @@ def fetch_stock_history(code: str, days: int = 60) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def fetch_stock_history_period(code: str, period: str = "weekly", days: int = 120) -> pd.DataFrame:
+    """Fetch K-line for a single stock at a given period (daily/weekly/monthly) using akshare."""
+    from datetime import timedelta
+    import akshare as ak
+
+    end_date = datetime.now().strftime("%Y%m%d")
+    multiplier = 1 if period == "daily" else (5 if period == "weekly" else 21)
+    start_date = (datetime.now() - timedelta(days=days * multiplier * 2)).strftime("%Y%m%d")
+    try:
+        df = ak.stock_zh_a_hist(symbol=code, period=period,
+                                 start_date=start_date, end_date=end_date,
+                                 adjust="qfq")
+        df = df.rename(columns={
+            "日期": "date",
+            "开盘": "open",
+            "收盘": "close",
+            "最高": "high",
+            "最低": "low",
+            "成交量": "volume",
+            "换手率": "turnover_rate",
+        })
+        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+        return df.tail(days)
+    except Exception:
+        return pd.DataFrame()
+
+
 def compute_volume_ratio(code: str) -> float:
     """Fetch 6-day K-line and return volume_ratio = today_vol / avg_prev_5_vol."""
     df = fetch_kline_sina(code, days=6)
@@ -296,6 +323,95 @@ def fetch_corp_info(code: str) -> dict[str, str]:
     except Exception:
         pass
 
+    return result
+
+
+# ----- Sector ranking (cached 60s) -----
+_sector_cache: dict[str, tuple[float, list[dict]]] = {}
+
+
+def fetch_sector_ranking() -> list[dict]:
+    """Fetch industry sector performance ranking from akshare THS.
+    Returns list of {name, change_pct, turnover_rate, lead_stock, lead_stock_change}. Cached 60s."""
+    import time
+    import akshare as ak
+
+    now = time.time()
+    entry = _sector_cache.get("ranking")
+    if entry and now - entry[0] < 60:
+        return entry[1]
+
+    try:
+        df = ak.stock_board_industry_summary_ths()
+        if df.empty:
+            return []
+        df = df.rename(columns={
+            "板块": "name",
+            "涨跌幅": "change_pct",
+            "换手率": "turnover_rate",
+            "领涨股票": "lead_stock",
+            "领涨股票-涨跌幅": "lead_stock_change",
+        })
+        cols = ["name", "change_pct", "turnover_rate", "lead_stock", "lead_stock_change"]
+        result = df[[c for c in cols if c in df.columns]].to_dict(orient="records")
+        # Convert numeric strings
+        for r in result:
+            for k in ("change_pct", "turnover_rate", "lead_stock_change"):
+                if k in r:
+                    try:
+                        r[k] = float(r[k])
+                    except (ValueError, TypeError):
+                        r[k] = 0.0
+        _sector_cache["ranking"] = (now, result)
+        return result
+    except Exception:
+        entry = _sector_cache.get("ranking")
+        return entry[1] if entry else []
+
+
+# ----- Limit-up/down stats (cached 60s) -----
+_limit_cache: dict[str, tuple[float, list[dict]]] = {}
+
+
+def fetch_limit_stats() -> dict:
+    """Fetch limit-up and limit-down stock lists. Returns {zt_list, dt_list}. Cached 60s."""
+    import time
+    import akshare as ak
+
+    now = time.time()
+    entry = _limit_cache.get("stats")
+    if entry and now - entry[0] < 60:
+        return entry[1]
+
+    result: dict = {"zt_list": [], "dt_list": []}
+
+    # Limit-up pool
+    try:
+        zt_df = ak.stock_zt_pool_em(date=datetime.now().strftime("%Y%m%d"))
+        if not zt_df.empty:
+            zt_df = zt_df.rename(columns={
+                "代码": "code", "名称": "name", "涨停价": "zt_price",
+                "封单量": "seal_volume", "连板数": "board_count",
+                "首次封板时间": "first_seal_time", "所属行业": "industry",
+            })
+            zt_cols = ["code", "name", "zt_price", "seal_volume", "board_count", "first_seal_time", "industry"]
+            result["zt_list"] = zt_df[[c for c in zt_cols if c in zt_df.columns]].to_dict(orient="records")
+    except Exception:
+        pass
+
+    # Limit-down pool (try THS, fall back gracefully)
+    try:
+        dt_df = ak.limit_list_ths()
+        if not dt_df.empty:
+            dt_df = dt_df.rename(columns={
+                "代码": "code", "名称": "name", "所属行业": "industry",
+            })
+            dt_cols = ["code", "name", "industry"]
+            result["dt_list"] = dt_df[[c for c in dt_cols if c in dt_df.columns]].to_dict(orient="records")
+    except Exception:
+        pass
+
+    _limit_cache["stats"] = (now, result)
     return result
 
 
