@@ -44,6 +44,30 @@ watch(() => props.code, async (newCode) => {
         ;(data.daily[i] as Record<string, unknown>).change_pct = 0
       }
     }
+    // Merge today's intraday bars into daily K-line data (synthesize daily candle)
+    if (idata.bars && idata.bars.length > 0) {
+      const bars = idata.bars
+      const today = String(bars[0].date).split(' ')[0]
+      const opens = bars.map(b => Number(b.open ?? b.close)).filter(v => v > 0)
+      const highs = bars.map(b => Number(b.high ?? b.close)).filter(v => v > 0)
+      const lows = bars.map(b => Number(b.low ?? b.close)).filter(v => v > 0)
+      const synth: Record<string, unknown> = {
+        date: today,
+        open: opens[0] ?? Number(bars[0].close),
+        high: Math.max(...highs),
+        low: Math.min(...lows),
+        close: Number(bars[bars.length - 1].close),
+        volume: bars.reduce((s, b) => s + Number(b.volume || 0), 0),
+      }
+      const lastIdx = data.daily.length - 1
+      const prevClose = lastIdx >= 0 ? Number(data.daily[lastIdx].close) : Number(synth.open)
+      synth.change_pct = prevClose > 0 ? ((Number(synth.close) - prevClose) / prevClose) * 100 : 0
+      if (lastIdx >= 0 && String(data.daily[lastIdx].date) === today) {
+        data.daily[lastIdx] = synth
+      } else {
+        data.daily.push(synth)
+      }
+    }
     // Show newest data first in table
     data.daily = data.daily.reverse()
     detail.value = data
