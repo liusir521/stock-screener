@@ -112,9 +112,10 @@ def stock_intraday(code: str):
     bars_df = fetch_intraday_sina(code)
     bars = bars_df.where(bars_df.notna(), None).to_dict(orient="records") if not bars_df.empty else []
 
-    # Get prev_close and float_shares from stock_daily
+    # Get prev_close and float_shares from stock_daily, compute turnover_rate
     prev_close = None
     float_shares = 0
+    turnover_rate = None
     try:
         import pandas as pd
         # Get last 2 rows for prev_close, and any row with valid float_shares
@@ -133,10 +134,15 @@ def stock_intraday(code: str):
                 if v > 0:
                     float_shares = v
                     break
+        # Compute turnover_rate from intraday total volume
+        if float_shares > 0 and bars:
+            total_vol = sum(float(b.get("volume") or 0) for b in bars)
+            if total_vol > 0:
+                turnover_rate = round(total_vol * 100 / float_shares, 2)
     except Exception:
         pass
 
-    return {"bars": bars, "prev_close": prev_close, "float_shares": float_shares}
+    return {"bars": bars, "prev_close": prev_close, "float_shares": float_shares, "turnover_rate": turnover_rate}
 
 
 @router.get("/concepts")

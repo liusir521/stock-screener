@@ -32,7 +32,7 @@ watch(() => props.code, async (newCode) => {
   try {
     const [data, idata] = await Promise.all([
       api.getStockDetail(newCode) as Promise<{ basic: Record<string, unknown> | null; daily: Record<string, unknown>[] }>,
-      api.getStockIntraday(newCode) as Promise<{ bars: Record<string, unknown>[]; prev_close: number | null; float_shares: number }>,
+      api.getStockIntraday(newCode) as Promise<{ bars: Record<string, unknown>[]; prev_close: number | null; float_shares: number; turnover_rate: number | null }>,
     ])
     // Compute change_pct for each day (API returns chronological order, oldest first)
     for (let i = 0; i < data.daily.length; i++) {
@@ -62,8 +62,8 @@ watch(() => props.code, async (newCode) => {
       const lastIdx = data.daily.length - 1
       const prevClose = lastIdx >= 0 ? Number(data.daily[lastIdx].close) : Number(synth.open)
       synth.change_pct = prevClose > 0 ? ((Number(synth.close) - prevClose) / prevClose) * 100 : 0
-      if (idata.float_shares > 0) {
-        synth.turnover_rate = Math.round(Number(synth.volume) * 100 / idata.float_shares * 100) / 100
+      if (idata.turnover_rate !== null && idata.turnover_rate !== undefined) {
+        synth.turnover_rate = idata.turnover_rate
       }
       if (lastIdx >= 0 && String(data.daily[lastIdx].date) === today) {
         data.daily[lastIdx] = synth
