@@ -438,16 +438,30 @@ _limit_cache: dict[str, tuple[float, list[dict]]] = {}
 
 
 def _is_at_limit(change_pct: float, market: str, is_st: bool, up: bool) -> bool:
-    """Check if a stock is at its daily price limit (up or down)."""
+    """Check if a stock is at its daily price limit (up or down).
+    Uses tight threshold (limit - 0.15) to approximate exact limit price calculation
+    since prev_close is not available for all stocks.
+    """
     if market in ("star", "chinext"):
-        threshold = 19.5
+        threshold = 19.85
     elif market == "bse":
-        threshold = 29.5
+        threshold = 29.85
     elif is_st:
-        threshold = 4.9
+        threshold = 4.85
     else:
-        threshold = 9.5
+        threshold = 9.85
     return change_pct >= threshold if up else change_pct <= -threshold
+
+
+def _is_ipo(name: str, change_pct: float) -> bool:
+    """Check if a stock is a recent IPO (no daily price limit)."""
+    # New listings start with N (first day) or C (days 2-5)
+    if name.startswith("N") or name.startswith("C"):
+        return True
+    # IPO first day often has extreme change_pct with no limit
+    if change_pct > 40 or change_pct < -40:
+        return True
+    return False
 
 
 def _fetch_limit_stats_from_db() -> dict:
@@ -464,6 +478,9 @@ def _fetch_limit_stats_from_db() -> dict:
     """
     with engine.connect() as conn:
         df = pd.read_sql_query(query, conn)
+
+    ipo_mask = df.apply(lambda r: _is_ipo(str(r["name"]), r["change_pct"]), axis=1)
+    df = df[~ipo_mask]
 
     zt_mask = df.apply(lambda r: _is_at_limit(r["change_pct"], r["market"], r["is_st"], up=True), axis=1)
     dt_mask = df.apply(lambda r: _is_at_limit(r["change_pct"], r["market"], r["is_st"], up=False), axis=1)
