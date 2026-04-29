@@ -329,6 +329,13 @@ function renderIntradayChart() {
   // Convert datetime strings to Unix timestamps (seconds)
   const toTs = (s: unknown) => Math.floor(new Date(String(s)).getTime() / 1000) as UTCTimestamp
 
+  // Full trading day boundaries (9:30 - 15:00)
+  const now = new Date()
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30, 0)
+  const dayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 15, 0, 0)
+  const fullFrom = Math.floor(dayStart.getTime() / 1000) as UTCTimestamp
+  const fullTo   = Math.floor(dayEnd.getTime() / 1000) as UTCTimestamp
+
   const colors = chartColors()
   intradayChart = createChart(el, {
     height: 320,
@@ -380,10 +387,8 @@ function renderIntradayChart() {
   })
   avgSeries.setData(bars.map((d, i) => ({ time: toTs(d.date), value: avgPrices[i] })))
 
-  // 0-axis line (yesterday's close)
+  // 0-axis line (yesterday's close) — span full trading day
   if (intradayPrevClose.value && intradayPrevClose.value > 0) {
-    const firstTime = toTs(bars[0].date)
-    const lastTime = toTs(bars[bars.length - 1].date)
     const zeroLine = intradayChart.addSeries(LineSeries, {
       color: isDark() ? '#64748b' : '#94a3b8',
       lineWidth: 1,
@@ -391,8 +396,8 @@ function renderIntradayChart() {
       lastValueVisible: false,
     })
     zeroLine.setData([
-      { time: firstTime, value: intradayPrevClose.value },
-      { time: lastTime, value: intradayPrevClose.value },
+      { time: fullFrom, value: intradayPrevClose.value },
+      { time: fullTo, value: intradayPrevClose.value },
     ])
   }
 
@@ -411,6 +416,9 @@ function renderIntradayChart() {
       color: curClose >= prevClose ? colors.up : colors.down,
     }
   }))
+
+  // Force full trading day width (9:30–15:00)
+  intradayChart.timeScale().setVisibleRange({ from: fullFrom, to: fullTo })
 
   // ResizeObserver
   const ro = new ResizeObserver(() => {
