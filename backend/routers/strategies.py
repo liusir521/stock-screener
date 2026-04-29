@@ -84,6 +84,57 @@ def save_strategy(strategy: Strategy):
     return {"status": "saved", "name": strategy.name}
 
 
+@router.get("/strategies/dashboard")
+def strategy_dashboard():
+    """Run all strategies against current data, return match counts, top stocks, and intersections."""
+    from services.screener import get_all_stocks_df, apply_filters
+
+    strategies = _load_strategies()
+    df = get_all_stocks_df()
+
+    # Run each strategy
+    results = []
+    all_matched: dict[str, set[str]] = {}
+    for s in strategies:
+        filtered = apply_filters(df, s["filters"])
+        codes = set(filtered["code"].tolist())
+        all_matched[s["name"]] = codes
+
+        top5 = filtered.head(5)[["code", "name", "close", "change_pct", "pe_ttm", "roe"]].where(
+            filtered.notna(), None).to_dict(orient="records")
+
+        results.append({
+            "name": s["name"],
+            "description": s.get("description", ""),
+            "filters": s["filters"],
+            "match_count": len(filtered),
+            "top_stocks": top5,
+        })
+
+    # Compute intersections (pairs that have meaningful overlap)
+    intersections = []
+    names = [s["name"] for s in strategies]
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            common = all_matched[names[i]] & all_matched[names[j]]
+            if len(common) > 0:
+                # Get top 3 stocks from intersection
+                top_display = sorted(common)[:3]
+                intersections.append({
+                    "strategies": [names[i], names[j]],
+                    "count": len(common),
+                    "sample_codes": top_display,
+                })
+
+    intersections.sort(key=lambda x: x["count"], reverse=True)
+
+    return {
+        "strategies": results,
+        "intersections": intersections[:10],
+        "total_stocks": len(df),
+    }
+
+
 @router.delete("/strategies/{name}")
 def delete_strategy(name: str):
     preset_names = [p["name"] for p in _presets()]

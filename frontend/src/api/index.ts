@@ -44,4 +44,9 @@ export const api = {
   getStockIntraday: (code: string) => get<{ bars: Record<string, unknown>[]; prev_close: number | null; float_shares: number; turnover_rate: number | null }>(`${BASE}/stocks/${code}/intraday`),
   getSectors: () => get<{ sectors: Record<string, unknown>[]; count: number }>(`${BASE}/sectors`),
   getLimitStats: () => get<{ zt_count: number; dt_count: number; zt_list: Record<string, unknown>[]; dt_list: Record<string, unknown>[] }>(`${BASE}/limit-stats`),
+  getStrategyDashboard: () => get<{
+    total_stocks: number
+    strategies: { name: string; description: string; filters: Record<string, unknown>; match_count: number; top_stocks: Record<string, unknown>[] }[]
+    intersections: { strategies: string[]; count: number; sample_codes: string[] }[]
+  }>(`${BASE}/strategies/dashboard`),
 }

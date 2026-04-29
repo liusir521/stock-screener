@@ -5,10 +5,11 @@ import StockTable from './components/StockTable.vue'
 import StockDetail from './components/StockDetail.vue'
 import SectorRanking from './components/SectorRanking.vue'
 import LimitStats from './components/LimitStats.vue'
+import StrategyDashboard from './components/StrategyDashboard.vue'
 import { api } from './api'
 import { useWatchlist } from './composables/useWatchlist'
 
-const activeTab = ref<'stocks' | 'sectors' | 'limit'>('stocks')
+const activeTab = ref<'stocks' | 'sectors' | 'limit' | 'strategies'>('stocks')
 const isDark = ref(false)
 
 function toggleTheme() {
@@ -22,10 +23,19 @@ onMounted(() => {
   isDark.value = saved === 'dark'
   document.documentElement.classList.toggle('dark', isDark.value)
   handleSearch({})
+  loadQuickStrategies()
 })
 
 const watchlist = useWatchlist()
 const watchlistOnly = ref(false)
+const quickStrategies = ref<{ name: string; filters: Record<string, unknown> }[]>([])
+
+async function loadQuickStrategies() {
+  try {
+    const data = await api.getStrategies()
+    quickStrategies.value = data.strategies
+  } catch {}
+}
 
 const items = ref<Record<string, unknown>[]>([])
 const total = ref(0)
@@ -125,6 +135,17 @@ function handleSectorSelect(code: string, name: string) {
 function handleStockFromLimit(code: string) {
   selectedCode.value = code
 }
+
+function handleApplyStrategy(filters: Record<string, unknown>) {
+  activeTab.value = 'stocks'
+  const params: Record<string, string> = {}
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== null && v !== '') {
+      params[k] = String(v)
+    }
+  }
+  handleSearch(params)
+}
 </script>
 
 <template>
@@ -144,11 +165,19 @@ function handleStockFromLimit(code: string) {
       </div>
       <div class="tab-bar">
         <button
-          v-for="t in (['stocks', 'sectors', 'limit'] as const)"
+          v-for="t in (['stocks', 'strategies', 'sectors', 'limit'] as const)"
           :key="t"
           :class="['tab-btn', { active: activeTab === t }]"
           @click="activeTab = t"
-        >{{ { stocks: '股票筛选', sectors: '板块排名', limit: '涨跌停板' }[t] }}</button>
+        >{{ { stocks: '股票筛选', strategies: '策略', sectors: '板块排名', limit: '涨跌停板' }[t] }}</button>
+      </div>
+      <div v-if="activeTab === 'stocks'" class="strategy-chips">
+        <span class="strategy-chips-label">快捷策略:</span>
+        <button
+          v-for="s in quickStrategies" :key="s.name"
+          class="strategy-chip"
+          @click="handleApplyStrategy(s.filters)"
+        >{{ s.name }}</button>
       </div>
       <StockTable v-if="activeTab === 'stocks'"
         :items="displayItems" :total="total" :loading="loading"
@@ -157,6 +186,7 @@ function handleStockFromLimit(code: string) {
         @page-change="handlePageChange" @sort-change="handleSortChange"
         @row-click="handleRowClick" @toggle-favorite="watchlist.toggle"
       />
+      <StrategyDashboard v-else-if="activeTab === 'strategies'" @apply-strategy="handleApplyStrategy" />
       <SectorRanking v-else-if="activeTab === 'sectors'" @select-sector="handleSectorSelect" />
       <LimitStats v-else-if="activeTab === 'limit'" @select-stock="handleStockFromLimit" />
     </main>
@@ -268,4 +298,18 @@ body {
 }
 .tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Strategy quick-select chips */
+.strategy-chips {
+  display: flex; align-items: center; gap: 6px; padding: 8px 24px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.strategy-chips-label { font-size: 11px; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+.strategy-chip {
+  padding: 3px 10px; border: 1px solid var(--border-strong); border-radius: 20px;
+  background: var(--bg-alt); color: var(--text-secondary); font-size: 11px;
+  cursor: pointer; font-weight: 500; transition: all var(--transition); white-space: nowrap;
+}
+.strategy-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 </style>
