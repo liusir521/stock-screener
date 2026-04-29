@@ -345,13 +345,22 @@ def fetch_sector_ranking() -> list[dict]:
         df = ak.stock_board_industry_summary_ths()
         if df.empty:
             return []
-        df = df.rename(columns={
-            "板块": "name",
-            "涨跌幅": "change_pct",
-            "换手率": "turnover_rate",
-            "领涨股票": "lead_stock",
-            "领涨股票-涨跌幅": "lead_stock_change",
-        })
+        # akshare column names vary across versions — map both common variants
+        rename_map: dict[str, str] = {}
+        for col in df.columns:
+            c = str(col)
+            if c in ("板块名称", "板块", "行业名称", "name"):
+                rename_map[c] = "name"
+            elif c in ("涨跌幅", "涨幅", "change_pct"):
+                rename_map[c] = "change_pct"
+            elif c in ("换手率", "turnover_rate"):
+                rename_map[c] = "turnover_rate"
+            elif c in ("领涨股票", "领涨股", "lead_stock"):
+                rename_map[c] = "lead_stock"
+            elif c in ("领涨股票-涨跌幅", "领涨股-涨跌幅", "领涨涨幅", "lead_stock_change"):
+                rename_map[c] = "lead_stock_change"
+        if rename_map:
+            df = df.rename(columns=rename_map)
         cols = ["name", "change_pct", "turnover_rate", "lead_stock", "lead_stock_change"]
         result = df[[c for c in cols if c in df.columns]].to_dict(orient="records")
         # Convert numeric strings
