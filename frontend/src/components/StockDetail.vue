@@ -62,7 +62,9 @@ watch(() => props.code, async (newCode) => {
         volume: bars.reduce((s, b) => s + Number(b.volume || 0), 0),
       }
       const lastIdx = data.daily.length - 1
-      const prevClose = lastIdx >= 0 ? Number(data.daily[lastIdx].close) : Number(synth.open)
+      // If the API already has today's row, compare against the day before; otherwise use last day
+      const refIdx = (lastIdx >= 0 && String(data.daily[lastIdx].date) === today) ? lastIdx - 1 : lastIdx
+      const prevClose = refIdx >= 0 ? Number(data.daily[refIdx].close) : Number(synth.open)
       synth.change_pct = prevClose > 0 ? ((Number(synth.close) - prevClose) / prevClose) * 100 : 0
       if (idata.turnover_rate !== null && idata.turnover_rate !== undefined) {
         synth.turnover_rate = idata.turnover_rate
@@ -377,6 +379,22 @@ function renderIntradayChart() {
     lastValueVisible: false,
   })
   avgSeries.setData(bars.map((d, i) => ({ time: toTs(d.date), value: avgPrices[i] })))
+
+  // 0-axis line (yesterday's close)
+  if (intradayPrevClose.value && intradayPrevClose.value > 0) {
+    const firstTime = toTs(bars[0].date)
+    const lastTime = toTs(bars[bars.length - 1].date)
+    const zeroLine = intradayChart.addSeries(LineSeries, {
+      color: isDark() ? '#64748b' : '#94a3b8',
+      lineWidth: 1,
+      lineStyle: 1, // dotted
+      lastValueVisible: false,
+    })
+    zeroLine.setData([
+      { time: firstTime, value: intradayPrevClose.value },
+      { time: lastTime, value: intradayPrevClose.value },
+    ])
+  }
 
   // Volume bars
   const volumeSeries = intradayChart.addSeries(HistogramSeries, {
