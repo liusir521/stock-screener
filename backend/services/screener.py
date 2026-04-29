@@ -30,9 +30,11 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         result = result[result["code"].str.contains(kw, case=False, na=False) |
                         result["name"].str.contains(kw, case=False, na=False)]
 
-    # Market filter
+    # Market filter (supports comma-separated multi-select)
     if filters.get("market"):
-        result = result[result["market"] == filters["market"]]
+        markets = [m.strip() for m in filters["market"].split(",") if m.strip()]
+        if markets:
+            result = result[result["market"].isin(markets)]
 
     # Exclude ST
     if filters.get("exclude_st"):
@@ -90,6 +92,20 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     vol_min = filters.get("volume_ratio_min")
     if vol_min is not None:
         result = result[result["volume_ratio"] >= vol_min]
+
+    # Concept filter (comma-separated concept names)
+    if filters.get("concept"):
+        selected = [c.strip() for c in filters["concept"].split(",") if c.strip()]
+        if selected:
+            from database import engine
+            import pandas as _pd
+            with engine.connect() as conn:
+                cdf = _pd.read_sql_query(
+                    "SELECT DISTINCT code FROM stock_concept WHERE concept_name IN ({})".format(
+                        ",".join("?" for _ in selected)),
+                    conn, params=tuple(selected))
+            matching_codes = set(cdf["code"].tolist())
+            result = result[result["code"].isin(matching_codes)]
 
     # Sort
     sort_by = filters.get("sort_by", "code")

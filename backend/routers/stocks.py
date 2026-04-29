@@ -23,6 +23,7 @@ def list_stocks(
     change_pct_min: float | None = Query(None),
     change_pct_max: float | None = Query(None),
     volume_ratio_min: float | None = Query(None),
+    concept: str | None = Query(None),
     exclude_st: bool = Query(True),
     sort_by: str = Query("code"),
     order: str = Query("asc"),
@@ -36,7 +37,7 @@ def list_stocks(
         "dividend_yield_min": dividend_yield_min,
         "revenue_growth_min": revenue_growth_min, "revenue_growth_max": revenue_growth_max,
         "change_pct_min": change_pct_min, "change_pct_max": change_pct_max,
-        "volume_ratio_min": volume_ratio_min,
+        "volume_ratio_min": volume_ratio_min, "concept": concept,
         "exclude_st": exclude_st, "sort_by": sort_by, "order": order,
     }.items() if v is not None}
 
@@ -101,6 +102,20 @@ def stock_detail(code: str):
         "basic": basic_dict,
         "daily": daily_data,
     }
+
+
+@router.get("/concepts")
+def list_concepts():
+    from database import engine
+    import pandas as pd
+    try:
+        with engine.connect() as conn:
+            df = pd.read_sql_query(
+                "SELECT concept_name, COUNT(*) as stock_count FROM stock_concept GROUP BY concept_name ORDER BY stock_count DESC",
+                conn)
+        return {"concepts": df.to_dict(orient="records")}
+    except Exception:
+        return {"concepts": []}
 
 
 @router.get("/markets")

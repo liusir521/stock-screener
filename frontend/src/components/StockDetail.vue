@@ -48,11 +48,15 @@ watch(() => props.code, async (newCode) => {
 })
 
 const chartContainer = ref<HTMLDivElement>()
+const macdContainer = ref<HTMLDivElement>()
 let chart: IChartApi | null = null
+let macdChart: IChartApi | null = null
 const maLastValues = ref<{ ma5: string; ma20: string; ma60: string }>({ ma5: '-', ma20: '-', ma60: '-' })
+const macdLastValues = ref<{ dif: string; dea: string; macd: string }>({ dif: '-', dea: '-', macd: '-' })
 
 function destroyChart() {
   if (chart) { chart.remove(); chart = null }
+  if (macdChart) { macdChart.remove(); macdChart = null }
 }
 
 function isDark() {
@@ -73,12 +77,14 @@ function chartColors() {
 function updateChartTheme() {
   if (!chart) return
   const colors = chartColors()
-  chart.applyOptions({
+  const opts = {
     layout: { background: { color: colors.bg }, textColor: colors.text },
     grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
     timeScale: { borderColor: colors.grid },
     leftPriceScale: { borderColor: colors.grid },
-  })
+  }
+  chart.applyOptions(opts)
+  if (macdChart) macdChart.applyOptions({ ...opts, leftPriceScale: undefined, rightPriceScale: { borderColor: colors.grid } })
 }
 
 watch(() => detail.value.daily, async (daily) => {
@@ -184,10 +190,87 @@ watch(() => detail.value.daily, async (daily) => {
   const maSeries60 = chart.addSeries(LineSeries, { color: maColors.ma60, lineWidth: 2, priceScaleId: 'left', lastValueVisible: false })
   maSeries60.setData(ma60.map((v, i) => ({ time: String(chronological[i].date), value: v })).filter(d => d.value !== null))
 
+  // MACD computation: EMA12, EMA26, DIF, DEA(9), MACD bar
+  const ema = (data: number[], period: number) => {
+    const k = 2 / (period + 1)
+    const result: number[] = []
+    let prev = data[0]
+    for (let i = 0; i < data.length; i++) {
+      prev = data[i] * k + prev * (1 - k)
+      result.push(prev)
+    }
+    return result
+  }
+  const ema12 = ema(closes, 12)
+  const ema26 = ema(closes, 26)
+  const dif = ema12.map((v, i) => v - ema26[i])
+  const dea = ema(dif, 9)
+  const macdBars = dif.map((v, i) => (v - dea[i]) * 2)
+
+  // Store last MACD values for legend
+  const lastDif = dif[dif.length - 1]
+  const lastDea = dea[dea.length - 1]
+  const lastMacd = macdBars[macdBars.length - 1]
+  macdLastValues.value = {
+    dif: lastDif !== undefined ? lastDif.toFixed(3) : '-',
+    dea: lastDea !== undefined ? lastDea.toFixed(3) : '-',
+    macd: lastMacd !== undefined ? lastMacd.toFixed(3) : '-',
+  }
+
+  // MACD chart (separate pane below price chart)
+  if (macdContainer.value) {
+    macdChart = createChart(macdContainer.value, {
+      height: 140,
+      layout: { background: { color: colors.bg }, textColor: colors.text },
+      grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
+      crosshair: { mode: CrosshairMode.Normal },
+      timeScale: { borderColor: colors.grid, timeVisible: false },
+      rightPriceScale: { borderColor: colors.grid, visible: true },
+      leftPriceScale: { visible: false },
+    })
+
+    // Sync time scale with main chart
+    const priceTimeScale = chart!.timeScale()
+    const macdTimeScale = macdChart.timeScale()
+    macdTimeScale.setVisibleRange(priceTimeScale.getVisibleRange()!)
+    priceTimeScale.subscribeVisibleTimeRangeChange(range => {
+      if (range) macdTimeScale.setVisibleRange(range)
+    })
+    priceTimeScale.subscribeVisibleLogicalRangeChange(() => {
+      // keep visual sync
+    })
+
+    const macdColors = { dif: '#f59e0b', dea: '#3b82f6', barUp: '#ef4444', barDown: '#22c55e' }
+
+    const difSeries = macdChart.addSeries(LineSeries, {
+      color: macdColors.dif, lineWidth: 1, priceScaleId: 'right', lastValueVisible: false,
+    })
+    difSeries.setData(dif.map((v, i) => ({ time: String(chronological[i].date), value: v })))
+
+    const deaSeries = macdChart.addSeries(LineSeries, {
+      color: macdColors.dea, lineWidth: 1, priceScaleId: 'right', lastValueVisible: false,
+    })
+    deaSeries.setData(dea.map((v, i) => ({ time: String(chronological[i].date), value: v })))
+
+    const macdSeries = macdChart.addSeries(HistogramSeries, { priceScaleId: 'right' })
+    macdSeries.setData(macdBars.map((v, i) => ({
+      time: String(chronological[i].date),
+      value: v,
+      color: v >= 0 ? macdColors.barUp : macdColors.barDown,
+    })))
+
+    // Clean up branding link in MACD chart too
+    macdContainer.value.querySelectorAll('a').forEach(el => {
+      if (el.href && el.href.includes('tradingview')) el.remove()
+    })
+  }
+
   // ResizeObserver for responsive chart
   const ro = new ResizeObserver(() => {
     if (chart && chartContainer.value) {
-      chart.applyOptions({ width: chartContainer.value.clientWidth })
+      const w = chartContainer.value.clientWidth
+      chart.applyOptions({ width: w })
+      if (macdChart) macdChart.applyOptions({ width: w })
     }
   })
   ro.observe(chartContainer.value)
@@ -265,6 +348,13 @@ function activeDays(count: number) {
             <span class="ma-item" style="color: #f59e0b">MA5: {{ maLastValues.ma5 }}</span>
             <span class="ma-item" style="color: #3b82f6">MA20: {{ maLastValues.ma20 }}</span>
             <span class="ma-item" style="color: #a855f7">MA60: {{ maLastValues.ma60 }}</span>
+          </div>
+          <h4 class="section-title" style="margin-top: 16px;">MACD</h4>
+          <div ref="macdContainer" class="chart-container macd-chart"></div>
+          <div class="ma-legend">
+            <span class="ma-item" style="color: #f59e0b">DIF: {{ macdLastValues.dif }}</span>
+            <span class="ma-item" style="color: #3b82f6">DEA: {{ macdLastValues.dea }}</span>
+            <span class="ma-item" style="color: #ef4444">MACD: {{ macdLastValues.macd }}</span>
           </div>
         </section>
 
@@ -345,6 +435,7 @@ function activeDays(count: number) {
   overflow: hidden; border: 1px solid var(--border); position: relative;
   background: var(--bg-surface);
 }
+.macd-chart { height: 140px; margin-top: 0; border-radius: 0 0 var(--radius) var(--radius); border-top: none; }
 .ma-legend {
   display: flex; gap: 20px; justify-content: center; padding: 10px 0 0;
   font-size: 12px; font-weight: 500;

@@ -31,10 +31,10 @@ const ALL_COLUMNS = [
   { key: 'pb', label: 'PB', width: '70px', sortable: true },
   { key: 'roe', label: 'ROE', width: '70px', sortable: true },
   { key: 'market_cap', label: '市值(亿)', width: '90px', sortable: true },
-  { key: 'dividend_yield', label: '股息率', width: '70px', sortable: false },
+  { key: 'dividend_yield', label: '股息率', width: '70px', sortable: true },
   { key: 'revenue_growth_3y', label: '营收增长(%)', width: '90px', sortable: true },
   { key: 'change_pct', label: '涨跌幅(%)', width: '80px', sortable: true },
-  { key: 'volume_ratio', label: '量比', width: '60px', sortable: false },
+  { key: 'volume_ratio', label: '量比', width: '60px', sortable: true },
 ]
 
 const STORAGE_KEY = 'stockScreenerColumns'

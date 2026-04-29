@@ -16,6 +16,13 @@ class StockBasic(Base):
     is_st: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class StockConcept(Base):
+    __tablename__ = "stock_concept"
+
+    code: Mapped[str] = mapped_column(Text, primary_key=True)
+    concept_name: Mapped[str] = mapped_column(Text, primary_key=True)
+
+
 class StockDaily(Base):
     __tablename__ = "stock_daily"
 

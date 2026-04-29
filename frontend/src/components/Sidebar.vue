@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted, computed } from 'vue'
 import MarketFilter from './MarketFilter.vue'
 import FilterGroup from './FilterGroup.vue'
 import StrategySave from './StrategySave.vue'
+import { api } from '../api'
 
 const emit = defineEmits<{
   search: [filters: Record<string, string>]
@@ -13,6 +14,34 @@ const props = defineProps<{ watchlistOnly?: boolean }>()
 
 const keyword = ref('')
 const market = reactive({ value: '' })
+const conceptSearch = ref('')
+const conceptOpen = ref(false)
+const allConcepts = ref<{ concept_name: string; stock_count: number }[]>([])
+const selectedConcepts = ref<Set<string>>(new Set())
+
+onMounted(async () => {
+  try {
+    const data = await api.getConcepts()
+    allConcepts.value = data.concepts || []
+  } catch { /* ignore */ }
+})
+
+const filteredConcepts = computed(() => {
+  if (!conceptSearch.value) return allConcepts.value
+  const kw = conceptSearch.value.toLowerCase()
+  return allConcepts.value.filter(c => c.concept_name.toLowerCase().includes(kw))
+})
+
+function toggleConcept(name: string) {
+  const s = new Set(selectedConcepts.value)
+  if (s.has(name)) s.delete(name)
+  else s.add(name)
+  selectedConcepts.value = s
+}
+
+function clearConcepts() {
+  selectedConcepts.value = new Set()
+}
 
 const PE_DEFAULT: [number, number] = [-100, 500]
 
@@ -46,6 +75,7 @@ function handleKeywordSearch() {
   }
   technical.value = { turnover_rate: [0, 20], change_pct: [-10, 10], volume_ratio: [0, 10] }
   keyword.value = kw
+  selectedConcepts.value = new Set()
   const params: Record<string, string> = {
     keyword: kw,
     page: '1',
@@ -80,6 +110,10 @@ function handleFilterSearch() {
   addRange('change_pct', technical.value.change_pct)
   addRange('volume_ratio', technical.value.volume_ratio)
 
+  if (selectedConcepts.value.size > 0) {
+    params.concept = [...selectedConcepts.value].join(',')
+  }
+
   params.sort_by = currentFilters.value.sort_by || 'pe_ttm'
   params.order = currentFilters.value.order || 'asc'
   params.page = '1'
@@ -103,6 +137,7 @@ function handleReset() {
     revenue_growth_3y: [0, 100],
   }
   technical.value = { turnover_rate: [0, 20], change_pct: [-10, 10], volume_ratio: [0, 10] }
+  selectedConcepts.value = new Set()
   currentFilters.value = {}
   emit('search', {})
 }
@@ -152,6 +187,36 @@ function handleLoadStrategy(filters: Record<string, string>) {
       <button class="keyword-btn" @click="handleKeywordSearch">搜索</button>
     </div>
     <MarketFilter v-model="market.value" />
+    <div class="concept-filter">
+      <div class="filter-group-header" @click="conceptOpen = !conceptOpen">
+        <span class="filter-group-title">概念板块</span>
+        <span class="concept-badge" v-if="selectedConcepts.size > 0">{{ selectedConcepts.size }}</span>
+        <span class="concept-arrow">{{ conceptOpen ? '▾' : '▸' }}</span>
+      </div>
+      <div v-if="conceptOpen" class="concept-dropdown">
+        <input
+          v-model="conceptSearch"
+          type="text"
+          placeholder="搜索概念..."
+          class="concept-search"
+        />
+        <button v-if="selectedConcepts.size > 0" class="concept-clear-btn" @click="clearConcepts">清除已选</button>
+        <div class="concept-list">
+          <label
+            v-for="c in filteredConcepts" :key="c.concept_name"
+            class="concept-item"
+          >
+            <input
+              type="checkbox"
+              :checked="selectedConcepts.has(c.concept_name)"
+              @change="toggleConcept(c.concept_name)"
+            />
+            <span class="concept-name">{{ c.concept_name }}</span>
+            <span class="concept-count">{{ c.stock_count }}</span>
+          </label>
+        </div>
+      </div>
+    </div>
     <FilterGroup title="基本面"
       :filters="[
         { key: 'pe_ttm', label: 'PE (TTM)', min: -100, max: 500, step: 1 },
@@ -236,4 +301,41 @@ function handleLoadStrategy(filters: Record<string, string>) {
 .watchlist-toggle input[type="checkbox"] {
   cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent);
 }
+
+.concept-filter { margin-bottom: 16px; }
+.concept-filter .filter-group-header {
+  display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; padding: 4px 0;
+}
+.concept-filter .filter-group-header .filter-group-title {
+  font-weight: 700; font-size: 13px; color: var(--text-primary); margin-bottom: 0;
+}
+.concept-badge {
+  background: var(--accent); color: white; font-size: 10px; padding: 1px 6px; border-radius: 10px;
+  font-weight: 600;
+}
+.concept-arrow { color: var(--text-muted); font-size: 12px; margin-left: auto; }
+.concept-dropdown { margin-top: 6px; }
+.concept-search {
+  width: 100%; padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--bg-alt); color: var(--text-primary); font-size: 12px; outline: none;
+  margin-bottom: 4px; transition: all var(--transition);
+}
+.concept-search:focus { border-color: var(--accent); background: var(--bg-surface); }
+.concept-clear-btn {
+  background: none; border: none; color: var(--accent); font-size: 11px; cursor: pointer;
+  padding: 2px 0; margin-bottom: 4px;
+}
+.concept-clear-btn:hover { text-decoration: underline; }
+.concept-list {
+  max-height: 200px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 2px 0;
+}
+.concept-item {
+  display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+  font-size: 12px; color: var(--text-primary); cursor: pointer; transition: background var(--transition);
+}
+.concept-item:hover { background: var(--bg-hover); }
+.concept-item input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
+.concept-name { flex: 1; }
+.concept-count { color: var(--text-muted); font-size: 10px; }
 </style>

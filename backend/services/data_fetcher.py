@@ -264,26 +264,68 @@ def fetch_corp_info(code: str) -> dict[str, str]:
         pass
 
     return result
-    """Fetch recent daily K-line data for a single stock using akshare."""
-    from datetime import timedelta
-    import akshare as ak
 
-    end_date = datetime.now().strftime("%Y%m%d")
-    start_date = (datetime.now() - timedelta(days=days * 2)).strftime("%Y%m%d")
+
+def fetch_concept_list() -> list[dict]:
+    """Fetch available concept board names from akshare THS."""
+    import akshare as ak
     try:
-        df = ak.stock_zh_a_hist(symbol=code, period="daily",
-                                 start_date=start_date, end_date=end_date,
-                                 adjust="qfq")
-        df = df.rename(columns={
-            "日期": "date",
-            "开盘": "open",
-            "收盘": "close",
-            "最高": "high",
-            "最低": "low",
-            "成交量": "volume",
-            "换手率": "turnover_rate",
-        })
-        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
-        return df.tail(days)
+        df = ak.stock_board_concept_name_ths()
+        return df.to_dict(orient="records") if not df.empty else []
     except Exception:
-        return pd.DataFrame()
+        return []
+
+
+def fetch_concept_stocks(symbol: str) -> list[str]:
+    """Fetch stock codes belonging to a concept board."""
+    import akshare as ak
+    try:
+        df = ak.stock_board_concept_cons_ths(symbol=symbol)
+        if df.empty:
+            return []
+        # Column may be '代码' or 'code'
+        code_col = "代码" if "代码" in df.columns else df.columns[0]
+        return df[code_col].astype(str).tolist()
+    except Exception:
+        return []
+
+
+def batch_fetch_concepts(top_n: int = 80) -> list[dict]:
+    """Fetch top N concept boards and their stock mappings. Returns list of {code, concept_name}."""
+    import akshare as ak
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    concepts = fetch_concept_list()
+    if not concepts:
+        return []
+
+    # Sort by some metric if available, otherwise take first top_n
+    # The THS concept list may have '涨跌幅' or '换手率' columns
+    if "换手率" in concepts[0]:
+        concepts.sort(key=lambda x: float(x.get("换手率", 0) or 0), reverse=True)
+    concepts = concepts[:top_n]
+
+    # Build code → concept_name mapping
+    code_concepts: dict[str, list[str]] = {}
+    codes = [c.get("代码", c.get("code", "")) for c in concepts]
+
+    print(f"  Fetching constituents for {len(codes)} concept boards...")
+    done = 0
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        fut = {pool.submit(fetch_concept_stocks, code): (code, c) for code, c in zip(codes, concepts)}
+        for f in as_completed(fut):
+            board_code, concept = fut[f]
+            try:
+                stocks = f.result()
+            except Exception:
+                stocks = []
+            name = concept.get("name", concept.get("板块名称", board_code))
+            for s in stocks:
+                code_concepts.setdefault(s, []).append(name)
+            done += 1
+            if done % 20 == 0:
+                print(f"    concepts: {done}/{len(codes)}")
+
+    result = [{"code": k, "concept_name": v} for k, vs in code_concepts.items() for v in vs]
+    print(f"  Concept mapping: {len(result)} stock-concept pairs for {len(code_concepts)} stocks")
+    return result

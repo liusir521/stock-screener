@@ -3,7 +3,7 @@ import threading
 import traceback
 
 from database import SessionLocal, init_db
-from models import StockBasic, StockDaily
+from models import StockBasic, StockConcept, StockDaily
 from services.data_fetcher import fetch_all_sina_data
 
 _refresh_lock = threading.Lock()
@@ -80,6 +80,25 @@ def seed() -> dict:
                     updated_vr += 1
             session.commit()
             print(f"  volume_ratio updated: {updated_vr} stocks")
+
+            # Seed concept board data
+            print("  Fetching concept board data...")
+            from services.data_fetcher import batch_fetch_concepts
+            try:
+                concepts = batch_fetch_concepts(top_n=80)
+                if concepts:
+                    # Clear old concept data
+                    session.query(StockConcept).delete()
+                    for item in concepts:
+                        for cn in item["concept_name"]:
+                            session.merge(StockConcept(code=item["code"], concept_name=cn))
+                    session.commit()
+                    print(f"  Concepts seeded: {len(concepts)} stock-concept pairs")
+                else:
+                    print("  No concept data fetched")
+            except Exception as e:
+                print(f"  Concept seeding error (non-fatal): {e}")
+
             session.close()
 
             _refresh_status["basic_count"] = basic_count
