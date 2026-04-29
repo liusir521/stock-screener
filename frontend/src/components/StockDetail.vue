@@ -220,12 +220,9 @@ function renderCharts() {
   }
 
   // MACD chart (separate pane below price chart)
-  const macdEl = macdContainer.value
-    || document.getElementById('macd-chart-container') as HTMLDivElement | null
-    || chartContainer.value?.parentElement?.querySelector('.macd-chart') as HTMLDivElement | null
-  if (macdEl) {
+  if (macdContainer.value) {
     try {
-      macdChart = createChart(macdEl, {
+      macdChart = createChart(macdContainer.value!, {
         height: 140,
         layout: { background: { color: colors.bg }, textColor: colors.text },
         grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
@@ -261,7 +258,7 @@ function renderCharts() {
         color: v >= 0 ? macdColors.barUp : macdColors.barDown,
       })))
 
-      macdEl.querySelectorAll('a').forEach(el => {
+      macdContainer.value!.querySelectorAll('a').forEach(el => {
         if (el.href && el.href.includes('tradingview')) el.remove()
       })
     } catch (e) {
@@ -355,7 +352,7 @@ function activeDays(count: number) {
             <span class="ma-item" style="color: #a855f7">MA60: {{ maLastValues.ma60 }}</span>
           </div>
           <h4 class="section-title" style="margin-top: 16px;">MACD</h4>
-          <div ref="macdContainer" id="macd-chart-container" class="chart-container macd-chart"></div>
+          <div ref="macdContainer" class="macd-chart-container"></div>
           <div class="ma-legend">
             <span class="ma-item" style="color: #f59e0b">DIF: {{ macdLastValues.dif }}</span>
             <span class="ma-item" style="color: #3b82f6">DEA: {{ macdLastValues.dea }}</span>
@@ -436,7 +433,11 @@ function activeDays(count: number) {
   overflow: hidden; border: 1px solid var(--border); position: relative;
   background: var(--bg-surface);
 }
-.macd-chart { height: 140px; margin-top: 0; border-radius: 0 0 var(--radius) var(--radius); border-top: none; }
+.macd-chart-container {
+  width: 100%; height: 140px; border-radius: var(--radius);
+  overflow: hidden; border: 1px solid var(--border); position: relative;
+  background: var(--bg-surface);
+}
 .ma-legend {
   display: flex; gap: 20px; justify-content: center; padding: 10px 0 0;
   font-size: 12px; font-weight: 500;
