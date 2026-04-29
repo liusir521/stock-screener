@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onBeforeUnmount, onMounted } from 'vue'
-import { createChart, CandlestickSeries, HistogramSeries, LineSeries, type IChartApi, type ISeriesApi, CrosshairMode } from 'lightweight-charts'
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries, type IChartApi, type ISeriesApi, CrosshairMode, type UTCTimestamp, type Time } from 'lightweight-charts'
 import { api } from '../api'
 
 const props = defineProps<{ code: string | null }>()
@@ -290,12 +290,22 @@ function renderIntradayChart() {
   const el = document.getElementById('intraday-chart-area') as HTMLDivElement | null
   if (!el) return
 
+  // Convert datetime strings to Unix timestamps (seconds)
+  const toTs = (s: unknown) => Math.floor(new Date(String(s)).getTime() / 1000) as UTCTimestamp
+
   const colors = chartColors()
   intradayChart = createChart(el, {
     height: 320,
     layout: { background: { color: colors.bg }, textColor: colors.text },
     grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
-    timeScale: { borderColor: colors.grid, timeVisible: true },
+    timeScale: {
+      borderColor: colors.grid,
+      timeVisible: true,
+      tickMarkFormatter: (ts: Time) => {
+        const d = new Date((ts as number) * 1000)
+        return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
+      },
+    },
     leftPriceScale: { borderColor: colors.grid, visible: true },
     rightPriceScale: { visible: false },
   })
@@ -323,7 +333,7 @@ function renderIntradayChart() {
     lineWidth: 2,
     lastValueVisible: false,
   })
-  priceSeries.setData(bars.map(d => ({ time: String(d.date), value: Number(d.close) })))
+  priceSeries.setData(bars.map(d => ({ time: toTs(d.date), value: Number(d.close) })))
 
   // Average price line (yellow, dashed)
   const avgSeries = intradayChart.addSeries(LineSeries, {
@@ -332,7 +342,7 @@ function renderIntradayChart() {
     lineStyle: 2, // dashed
     lastValueVisible: false,
   })
-  avgSeries.setData(bars.map((d, i) => ({ time: String(d.date), value: avgPrices[i] })))
+  avgSeries.setData(bars.map((d, i) => ({ time: toTs(d.date), value: avgPrices[i] })))
 
   // Volume bars
   const volumeSeries = intradayChart.addSeries(HistogramSeries, {
@@ -344,7 +354,7 @@ function renderIntradayChart() {
     const curClose = Number(d.close)
     const prevClose = i > 0 ? Number(bars[i - 1].close) : curClose
     return {
-      time: String(d.date),
+      time: toTs(d.date),
       value: Number(d.volume),
       color: curClose >= prevClose ? colors.up : colors.down,
     }
