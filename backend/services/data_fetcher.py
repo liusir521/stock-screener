@@ -331,9 +331,11 @@ _sector_cache: dict[str, tuple[float, list[dict]]] = {}
 
 
 def fetch_sector_ranking() -> list[dict]:
-    """Fetch industry sector performance ranking from东方财富. Cached 60s."""
+    """Fetch industry sector performance ranking from同花顺. Cached 60s."""
     import time
-    import akshare as ak
+    from io import StringIO
+    import pandas as pd
+    from bs4 import BeautifulSoup
 
     now = time.time()
     entry = _sector_cache.get("ranking")
@@ -341,24 +343,50 @@ def fetch_sector_ranking() -> list[dict]:
         return entry[1]
 
     try:
-        df = ak.stock_board_industry_name_em()
-        if df.empty:
-            return []
-        cols_map = {
-            "板块名称": "name", "板块代码": "code",
-            "涨跌幅": "change_pct", "换手率": "turnover_rate",
-            "领涨股票": "lead_stock", "领涨股票-涨跌幅": "lead_stock_change",
-        }
-        df = df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns})
-        out_cols = ["code", "name", "change_pct", "turnover_rate", "lead_stock", "lead_stock_change"]
-        result = df[[c for c in out_cols if c in df.columns]].to_dict(orient="records")
-        for r in result:
-            for k in ("change_pct", "turnover_rate", "lead_stock_change"):
-                if k in r:
-                    try:
-                        r[k] = float(r[k])
-                    except (ValueError, TypeError):
-                        r[k] = 0.0
+        s = _sina_session()
+        r = s.get("https://q.10jqka.com.cn/thshy/",
+                  headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+        r.raise_for_status()
+        decoded = r.content.decode("gbk", errors="replace")
+
+        # Parse table data
+        tables = pd.read_html(StringIO(decoded))
+        df = tables[0]
+        df.columns = [str(c) for c in df.columns]
+
+        # Parse sector codes from links
+        soup = BeautifulSoup(decoded, "html.parser")
+        code_map: dict[str, str] = {}
+        for row in soup.select("table tbody tr"):
+            cells = row.find_all("td")
+            if len(cells) >= 2:
+                name_a = cells[1].find("a")
+                if name_a and "thshy/detail/code/" in name_a.get("href", ""):
+                    href = name_a["href"]
+                    code = href.rstrip("/").split("/")[-1]
+                    name = name_a.get_text(strip=True)
+                    code_map[name] = code
+
+        # Map columns
+        col_map = {"板块": "name", "涨跌幅(%)": "change_pct", "领涨股": "lead_stock"}
+        df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+
+        # Find lead stock change column (涨跌幅(%).1)
+        lead_chg_col = next((c for c in df.columns if "涨跌幅" in str(c) and "." in str(c)), None)
+
+        result: list[dict] = []
+        for _, row in df.iterrows():
+            name = str(row.get("name", ""))
+            r: dict = {
+                "code": code_map.get(name, ""),
+                "name": name,
+                "change_pct": float(row.get("change_pct", 0) or 0),
+                "turnover_rate": 0,  # not available on THS listing page
+                "lead_stock": str(row.get("lead_stock", "")),
+                "lead_stock_change": float(row.get(lead_chg_col, 0) or 0) if lead_chg_col else 0,
+            }
+            result.append(r)
+
         _sector_cache["ranking"] = (now, result)
         return result
     except Exception:
@@ -371,9 +399,10 @@ _industry_stocks_cache: dict[str, tuple[float, list[str]]] = {}
 
 
 def fetch_industry_stocks(board_code: str) -> list[str]:
-    """Get stock codes in an东方财富 industry board. Cached 300s."""
+    """Get stock codes in a同花顺 industry board. Cached 300s."""
     import time
-    import akshare as ak
+    from io import StringIO
+    import pandas as pd
 
     now = time.time()
     entry = _industry_stocks_cache.get(board_code)
@@ -381,10 +410,17 @@ def fetch_industry_stocks(board_code: str) -> list[str]:
         return entry[1]
 
     try:
-        df = ak.stock_board_industry_cons_em(symbol=board_code)
-        if df.empty:
-            return []
-        code_col = "代码" if "代码" in df.columns else df.columns[0]
+        s = _sina_session()
+        url = f"http://q.10jqka.com.cn/thshy/detail/code/{board_code}/"
+        r = s.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+        r.raise_for_status()
+        decoded = r.content.decode("gbk", errors="replace")
+
+        tables = pd.read_html(StringIO(decoded))
+        df = tables[0]
+        df.columns = [str(c) for c in df.columns]
+
+        code_col = "代码" if "代码" in df.columns else df.columns[1]
         result = df[code_col].astype(str).tolist()
         _industry_stocks_cache[board_code] = (now, result)
         return result

@@ -41,7 +41,6 @@ function changeClass(val: unknown): string {
 const COLUMNS = [
   { key: 'name', label: '板块名称' },
   { key: 'change_pct', label: '涨跌幅(%)' },
-  { key: 'turnover_rate', label: '换手率(%)' },
   { key: 'lead_stock', label: '领涨股票' },
   { key: 'lead_stock_change', label: '领涨涨跌幅(%)' },
 ]

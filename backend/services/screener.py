@@ -36,9 +36,9 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         ind_name = filters.get("industry_name", "")
         search_name = ind_name or ind_val
 
-        # Step 1: if it's a BKxxxx东方财富 board code, try constituent API
+        # Step 1: if it's a sector code (digits), try constituent API
         codes: set[str] = set()
-        if ind_val.startswith("BK"):
+        if ind_val.isdigit():
             from services.data_fetcher import fetch_industry_stocks
             codes = set(fetch_industry_stocks(ind_val))
 
