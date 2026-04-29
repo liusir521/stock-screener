@@ -232,14 +232,6 @@ function renderCharts() {
         rightPriceScale: { visible: false },
       })
 
-      const priceTimeScale = chart!.timeScale()
-      const macdTimeScale = macdChart.timeScale()
-      const visibleRange = priceTimeScale.getVisibleRange()
-      if (visibleRange) macdTimeScale.setVisibleRange(visibleRange)
-      priceTimeScale.subscribeVisibleTimeRangeChange(range => {
-        if (range && macdChart) macdTimeScale.setVisibleRange(range)
-      })
-
       const macdColors = { dif: '#f59e0b', dea: '#3b82f6', barUp: '#ef4444', barDown: '#22c55e' }
 
       const difSeries = macdChart.addSeries(LineSeries, {
