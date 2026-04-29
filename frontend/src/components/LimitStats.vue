@@ -33,15 +33,16 @@ function fmt(val: unknown): string {
 const ZT_COLUMNS = [
   { key: 'code', label: '代码' },
   { key: 'name', label: '名称' },
+  { key: 'change_pct', label: '涨跌幅(%)' },
   { key: 'board_count', label: '连板数' },
-  { key: 'seal_volume', label: '封单量' },
-  { key: 'first_seal_time', label: '首次封板时间' },
+  { key: 'first_seal_time', label: '首次封板' },
   { key: 'industry', label: '所属行业' },
 ]
 
 const DT_COLUMNS = [
   { key: 'code', label: '代码' },
   { key: 'name', label: '名称' },
+  { key: 'change_pct', label: '涨跌幅(%)' },
   { key: 'industry', label: '所属行业' },
 ]
 </script>

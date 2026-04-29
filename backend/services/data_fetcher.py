@@ -437,43 +437,107 @@ def fetch_industry_stocks(board_code: str) -> list[str]:
 _limit_cache: dict[str, tuple[float, list[dict]]] = {}
 
 
+def _is_at_limit(change_pct: float, market: str, is_st: bool, up: bool) -> bool:
+    """Check if a stock is at its daily price limit (up or down)."""
+    if market in ("star", "chinext"):
+        threshold = 19.5
+    elif market == "bse":
+        threshold = 29.5
+    elif is_st:
+        threshold = 4.9
+    else:
+        threshold = 9.5
+    return change_pct >= threshold if up else change_pct <= -threshold
+
+
+def _fetch_limit_stats_from_db() -> dict:
+    """Compute limit-up/down stocks from stock_daily table using change_pct thresholds."""
+    from database import engine
+    import pandas as pd
+
+    query = """
+        SELECT b.code, b.name, b.market, b.industry, b.is_st,
+               d.change_pct, d.close, d.volume, d.turnover_rate
+        FROM stock_basic b
+        JOIN stock_daily d ON b.code = d.code
+            AND d.date = (SELECT MAX(date) FROM stock_daily WHERE code = b.code)
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql_query(query, conn)
+
+    zt_mask = df.apply(lambda r: _is_at_limit(r["change_pct"], r["market"], r["is_st"], up=True), axis=1)
+    dt_mask = df.apply(lambda r: _is_at_limit(r["change_pct"], r["market"], r["is_st"], up=False), axis=1)
+
+    zt_df = df[zt_mask].copy()
+    dt_df = df[dt_mask].copy()
+
+    zt_list: list[dict] = []
+    for _, r in zt_df.iterrows():
+        zt_list.append({
+            "code": str(r["code"]), "name": str(r["name"]),
+            "change_pct": float(r["change_pct"]), "industry": str(r.get("industry", "")),
+            "board_count": 0, "seal_volume": 0, "first_seal_time": "",
+        })
+
+    dt_list: list[dict] = []
+    for _, r in dt_df.iterrows():
+        dt_list.append({
+            "code": str(r["code"]), "name": str(r["name"]),
+            "change_pct": float(r["change_pct"]), "industry": str(r.get("industry", "")),
+        })
+
+    return {"zt_list": zt_list, "dt_list": dt_list}
+
+
+def _enrich_with_eastmoney(zt_list: list[dict]) -> list[dict]:
+    """Try to enrich ZT list with board_count/seal_volume/first_seal_time from East Money."""
+    import requests as req
+    try:
+        url = "https://push2ex.eastmoney.com/getTopicZTPool"
+        params = {
+            "ut": "7eea3edcaed734bea9cbfc24409ed989",
+            "dpt": "wz.ztzt",
+            "Pageindex": "0",
+            "pagesize": "200",
+            "sort": "fbt:asc",
+            "date": datetime.now().strftime("%Y%m%d"),
+        }
+        r = req.get(url, params=params, timeout=10)
+        data = r.json()
+        pool = data.get("data", {}).get("pool", []) if data.get("data") else []
+        if not pool:
+            return zt_list
+
+        # Build enrichment lookup
+        enrich: dict[str, dict] = {}
+        for item in pool:
+            c = str(item.get("c", ""))
+            enrich[c] = {
+                "board_count": int(item.get("lbc", 0) or 0),
+                "seal_volume": float(item.get("fund", 0) or 0),
+                "first_seal_time": str(item.get("fbt", "")),
+            }
+
+        for zt in zt_list:
+            if zt["code"] in enrich:
+                zt.update(enrich[zt["code"]])
+    except Exception:
+        pass
+    return zt_list
+
+
 def fetch_limit_stats() -> dict:
-    """Fetch limit-up and limit-down stock lists. Returns {zt_list, dt_list}. Cached 60s."""
+    """Fetch limit-up and limit-down stock lists. Cached 60s."""
     import time
-    import akshare as ak
 
     now = time.time()
     entry = _limit_cache.get("stats")
     if entry and now - entry[0] < 60:
         return entry[1]
 
-    result: dict = {"zt_list": [], "dt_list": []}
-
-    # Limit-up pool
-    try:
-        zt_df = ak.stock_zt_pool_em(date=datetime.now().strftime("%Y%m%d"))
-        if not zt_df.empty:
-            zt_df = zt_df.rename(columns={
-                "代码": "code", "名称": "name", "涨停价": "zt_price",
-                "封单量": "seal_volume", "连板数": "board_count",
-                "首次封板时间": "first_seal_time", "所属行业": "industry",
-            })
-            zt_cols = ["code", "name", "zt_price", "seal_volume", "board_count", "first_seal_time", "industry"]
-            result["zt_list"] = zt_df[[c for c in zt_cols if c in zt_df.columns]].to_dict(orient="records")
-    except Exception:
-        pass
-
-    # Limit-down pool (try THS, fall back gracefully)
-    try:
-        dt_df = ak.limit_list_ths()
-        if not dt_df.empty:
-            dt_df = dt_df.rename(columns={
-                "代码": "code", "名称": "name", "所属行业": "industry",
-            })
-            dt_cols = ["code", "name", "industry"]
-            result["dt_list"] = dt_df[[c for c in dt_cols if c in dt_df.columns]].to_dict(orient="records")
-    except Exception:
-        pass
+    result = _fetch_limit_stats_from_db()
+    result["zt_list"] = _enrich_with_eastmoney(result["zt_list"])
+    result["zt_list"].sort(key=lambda x: x.get("board_count", 0), reverse=True)
 
     _limit_cache["stats"] = (now, result)
     return result
