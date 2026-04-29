@@ -394,9 +394,9 @@ function renderIntradayChart() {
   // 0-axis line (yesterday's close) — span full trading day
   if (intradayPrevClose.value && intradayPrevClose.value > 0) {
     const zeroLine = intradayChart.addSeries(LineSeries, {
-      color: isDark() ? '#64748b' : '#94a3b8',
-      lineWidth: 1,
-      lineStyle: 1, // dotted
+      color: isDark() ? '#cbd5e1' : '#475569',
+      lineWidth: 2,
+      lineStyle: 0, // solid
       lastValueVisible: false,
     })
     zeroLine.setData([
