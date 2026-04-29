@@ -30,9 +30,20 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         result = result[result["code"].str.contains(kw, case=False, na=False) |
                         result["name"].str.contains(kw, case=False, na=False)]
 
-    # Industry filter (from sector ranking click)
+    # Industry filter (from sector ranking click — tries THS constituent API first)
     if filters.get("industry"):
-        result = result[result["industry"].str.contains(filters["industry"], case=False, na=False)]
+        ind_val = filters["industry"]
+        # If value looks like a THS industry code (digits), use constituent API
+        if ind_val.isdigit():
+            from services.data_fetcher import fetch_industry_stocks
+            codes = set(fetch_industry_stocks(ind_val))
+            if codes:
+                result = result[result["code"].isin(codes)]
+            else:
+                # Fallback to name matching
+                result = result[result["industry"].str.contains(ind_val, case=False, na=False)]
+        else:
+            result = result[result["industry"].str.contains(ind_val, case=False, na=False)]
 
     # Market filter (supports comma-separated multi-select)
     if filters.get("market"):

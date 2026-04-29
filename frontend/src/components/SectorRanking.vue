@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { api } from '../api'
 
-const emit = defineEmits<{ 'select-sector': [name: string] }>()
+const emit = defineEmits<{ 'select-sector': [code: string, name: string] }>()
 
 const sectors = ref<Record<string, unknown>[]>([])
 const loading = ref(false)
@@ -22,8 +22,9 @@ async function load() {
 }
 
 function handleRowClick(row: Record<string, unknown>) {
+  const code = String(row.code || '')
   const name = String(row.name || '')
-  if (name) emit('select-sector', name)
+  if (code || name) emit('select-sector', code, name)
 }
 
 function fmt(val: unknown): string {

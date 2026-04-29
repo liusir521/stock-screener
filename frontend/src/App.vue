@@ -117,9 +117,9 @@ function handleRowClick(code: string) {
   selectedCode.value = code
 }
 
-function handleSectorSelect(name: string) {
+function handleSectorSelect(code: string, name: string) {
   activeTab.value = 'stocks'
-  handleSearch({ industry: name })
+  handleSearch({ industry: code || name })
 }
 
 function handleStockFromLimit(code: string) {

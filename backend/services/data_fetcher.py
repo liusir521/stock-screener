@@ -351,6 +351,8 @@ def fetch_sector_ranking() -> list[dict]:
             c = str(col)
             if c in ("板块名称", "板块", "行业名称", "name"):
                 rename_map[c] = "name"
+            elif c in ("板块代码", "代码", "code", "symbol"):
+                rename_map[c] = "code"
             elif c in ("涨跌幅", "涨幅", "change_pct"):
                 rename_map[c] = "change_pct"
             elif c in ("换手率", "turnover_rate"):
@@ -361,7 +363,7 @@ def fetch_sector_ranking() -> list[dict]:
                 rename_map[c] = "lead_stock_change"
         if rename_map:
             df = df.rename(columns=rename_map)
-        cols = ["name", "change_pct", "turnover_rate", "lead_stock", "lead_stock_change"]
+        cols = ["code", "name", "change_pct", "turnover_rate", "lead_stock", "lead_stock_change"]
         result = df[[c for c in cols if c in df.columns]].to_dict(orient="records")
         # Convert numeric strings
         for r in result:
@@ -375,6 +377,33 @@ def fetch_sector_ranking() -> list[dict]:
         return result
     except Exception:
         entry = _sector_cache.get("ranking")
+        return entry[1] if entry else []
+
+
+# ----- Industry constituent stocks (cached 300s) -----
+_industry_stocks_cache: dict[str, tuple[float, list[str]]] = {}
+
+
+def fetch_industry_stocks(industry_code: str) -> list[str]:
+    """Get stock codes belonging to a THS industry board. Cached 300s."""
+    import time
+    import akshare as ak
+
+    now = time.time()
+    entry = _industry_stocks_cache.get(industry_code)
+    if entry and now - entry[0] < 300:
+        return entry[1]
+
+    try:
+        df = ak.stock_board_industry_cons_ths(symbol=industry_code)
+        if df.empty:
+            return []
+        code_col = "代码" if "代码" in df.columns else df.columns[0]
+        result = df[code_col].astype(str).tolist()
+        _industry_stocks_cache[industry_code] = (now, result)
+        return result
+    except Exception:
+        entry = _industry_stocks_cache.get(industry_code)
         return entry[1] if entry else []
 
 
