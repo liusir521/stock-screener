@@ -66,6 +66,7 @@ watch(() => props.code, async (newCode) => {
         data.daily[lastIdx] = synth
       } else {
         data.daily.push(synth)
+        if (data.daily.length > 120) data.daily.shift()
       }
     }
     // Show newest data first in table

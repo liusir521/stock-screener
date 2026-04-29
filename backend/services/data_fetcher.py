@@ -185,8 +185,15 @@ def fetch_intraday_sina(code: str) -> pd.DataFrame:
             return pd.DataFrame()
         items = __import__("json").loads(m.group(1))
         df = pd.DataFrame(items)
-        df = df.rename(columns={"day": "date", "close": "close", "volume": "volume"})
-        for col in ["close", "volume"]:
+        df = df.rename(columns={
+            "day": "date",
+            "open": "open",
+            "high": "high",
+            "low": "low",
+            "close": "close",
+            "volume": "volume",
+        })
+        for col in ["open", "high", "low", "close", "volume"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
         return df
