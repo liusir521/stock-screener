@@ -168,6 +168,32 @@ def fetch_kline_sina(code: str, days: int = 60) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def fetch_intraday_sina(code: str) -> pd.DataFrame:
+    """Fetch today's 1-minute K-line bars for intraday time-sharing chart.
+    Returns DataFrame with date (HH:MM), close, volume columns. Empty if market closed.
+    """
+    import re
+    symbol = _sina_symbol(code)
+    url = "https://quotes.sina.cn/cn/api/jsonp_v2.php/data/CN_MarketDataService.getKLineData"
+    try:
+        r = requests.get(url, params={"symbol": symbol, "scale": "1", "ma": "no", "datalen": "250"}, timeout=15)
+        r.raise_for_status()
+        text = r.text.strip()
+        text = re.sub(r'^/\*.*?\*/\s*', '', text)
+        m = re.match(r"^data\((.+)\);?\s*$", text)
+        if not m:
+            return pd.DataFrame()
+        items = __import__("json").loads(m.group(1))
+        df = pd.DataFrame(items)
+        df = df.rename(columns={"day": "date", "close": "close", "volume": "volume"})
+        for col in ["close", "volume"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
 def fetch_stock_history(code: str, days: int = 60) -> pd.DataFrame:
     """Fetch recent daily K-line data for a single stock using akshare."""
     from datetime import timedelta

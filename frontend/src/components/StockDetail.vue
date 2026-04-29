@@ -7,6 +7,8 @@ const props = defineProps<{ code: string | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const detail = ref<{ basic: Record<string, unknown> | null; daily: Record<string, unknown>[] }>({ basic: null, daily: [] })
+const intradayBars = ref<Record<string, unknown>[]>([])
+const intradayPrevClose = ref<number | null>(null)
 const loading = ref(false)
 
 let themeObserver: MutationObserver | null = null
@@ -25,10 +27,13 @@ onBeforeUnmount(() => {
 
 watch(() => props.code, async (newCode) => {
   destroyChart()
-  if (!newCode) { detail.value = { basic: null, daily: [] }; return }
+  if (!newCode) { detail.value = { basic: null, daily: [] }; intradayBars.value = []; return }
   loading.value = true
   try {
-    const data = await api.getStockDetail(newCode) as { basic: Record<string, unknown> | null; daily: Record<string, unknown>[] }
+    const [data, idata] = await Promise.all([
+      api.getStockDetail(newCode) as Promise<{ basic: Record<string, unknown> | null; daily: Record<string, unknown>[] }>,
+      api.getStockIntraday(newCode) as Promise<{ bars: Record<string, unknown>[]; prev_close: number | null }>,
+    ])
     // Compute change_pct for each day (API returns chronological order, oldest first)
     for (let i = 0; i < data.daily.length; i++) {
       const todayClose = Number(data.daily[i].close)
@@ -42,10 +47,13 @@ watch(() => props.code, async (newCode) => {
     // Show newest data first in table
     data.daily = data.daily.reverse()
     detail.value = data
+    intradayBars.value = idata.bars || []
+    intradayPrevClose.value = idata.prev_close
     loading.value = false
     await nextTick()
     await new Promise(r => setTimeout(r, 300))
     renderCharts()
+    renderIntradayChart()
   } finally {
     loading.value = false
   }
@@ -54,6 +62,7 @@ watch(() => props.code, async (newCode) => {
 const chartContainer = ref<HTMLDivElement>()
 let chart: IChartApi | null = null
 let macdChart: IChartApi | null = null
+let intradayChart: IChartApi | null = null
 let macdChartEl: HTMLDivElement | null = null
 const maLastValues = ref<{ ma5: string; ma20: string; ma60: string }>({ ma5: '-', ma20: '-', ma60: '-' })
 const macdLastValues = ref<{ dif: string; dea: string; macd: string }>({ dif: '-', dea: '-', macd: '-' })
@@ -61,6 +70,7 @@ const macdLastValues = ref<{ dif: string; dea: string; macd: string }>({ dif: '-
 function destroyChart() {
   if (chart) { chart.remove(); chart = null }
   if (macdChart) { macdChart.remove(); macdChart = null }
+  if (intradayChart) { intradayChart.remove(); intradayChart = null }
 }
 
 function isDark() {
@@ -89,6 +99,7 @@ function updateChartTheme() {
   }
   chart.applyOptions(opts)
   if (macdChart) macdChart.applyOptions({ ...opts, leftPriceScale: undefined, rightPriceScale: { borderColor: colors.grid } })
+  if (intradayChart) intradayChart.applyOptions({ ...opts, leftPriceScale: undefined, rightPriceScale: { borderColor: colors.grid } })
 }
 
 function renderCharts() {
@@ -271,6 +282,83 @@ function renderCharts() {
   ro.observe(chartContainer.value)
 }
 
+function renderIntradayChart() {
+  if (intradayChart) { intradayChart.remove(); intradayChart = null }
+  const bars = intradayBars.value
+  if (!bars.length) return
+
+  const el = document.getElementById('intraday-chart-area') as HTMLDivElement | null
+  if (!el) return
+
+  const colors = chartColors()
+  intradayChart = createChart(el, {
+    height: 320,
+    layout: { background: { color: colors.bg }, textColor: colors.text },
+    grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
+    timeScale: { borderColor: colors.grid, timeVisible: true },
+    leftPriceScale: { borderColor: colors.grid, visible: true },
+    rightPriceScale: { visible: false },
+  })
+
+  // Remove branding link
+  el.querySelectorAll('a').forEach(a => {
+    if (a.href && a.href.includes('tradingview')) a.remove()
+  })
+
+  // Compute average price: cumulative (vol * price) / cumulative vol
+  const avgPrices: number[] = []
+  let cumVolPrice = 0, cumVol = 0
+  for (const b of bars) {
+    const c = Number(b.close), v = Number(b.volume)
+    if (c && v) {
+      cumVolPrice += c * v
+      cumVol += v
+    }
+    avgPrices.push(cumVol > 0 ? cumVolPrice / cumVol : c)
+  }
+
+  // Price line (white in dark, dark blue in light)
+  const priceSeries = intradayChart.addSeries(LineSeries, {
+    color: isDark() ? '#ffffff' : '#1e40af',
+    lineWidth: 2,
+    lastValueVisible: false,
+  })
+  priceSeries.setData(bars.map(d => ({ time: String(d.date), value: Number(d.close) })))
+
+  // Average price line (yellow, dashed)
+  const avgSeries = intradayChart.addSeries(LineSeries, {
+    color: '#f59e0b',
+    lineWidth: 1,
+    lineStyle: 2, // dashed
+    lastValueVisible: false,
+  })
+  avgSeries.setData(bars.map((d, i) => ({ time: String(d.date), value: avgPrices[i] })))
+
+  // Volume bars
+  const volumeSeries = intradayChart.addSeries(HistogramSeries, {
+    priceFormat: { type: 'volume' },
+    priceScaleId: '',
+  })
+  volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } })
+  volumeSeries.setData(bars.map((d, i) => {
+    const curClose = Number(d.close)
+    const prevClose = i > 0 ? Number(bars[i - 1].close) : curClose
+    return {
+      time: String(d.date),
+      value: Number(d.volume),
+      color: curClose >= prevClose ? colors.up : colors.down,
+    }
+  }))
+
+  // ResizeObserver
+  const ro = new ResizeObserver(() => {
+    if (intradayChart && el) {
+      intradayChart.applyOptions({ width: el.clientWidth })
+    }
+  })
+  ro.observe(el)
+}
+
 function fmt(val: unknown, col?: string): string {
   if (val === null || val === undefined) return '-'
   if (col === 'change_pct') {
@@ -333,6 +421,22 @@ function activeDays(count: number) {
                 <span class="detail-value">{{ key === 'market' ? marketName(String(val)) : fmt(val) }}</span>
               </div>
             </template>
+          </div>
+        </section>
+
+        <section v-if="intradayBars.length" class="detail-section">
+          <h4 class="section-title">分时图</h4>
+          <div class="intraday-chart-container" id="intraday-chart-area"></div>
+          <div class="ma-legend">
+            <span class="ma-item">现价 {{ intradayBars.length ? Number(intradayBars[intradayBars.length-1].close).toFixed(2) : '-' }}</span>
+            <span class="ma-item" style="color: #f59e0b">均价 {{ (() => { let cvp = 0, cv = 0; for (const b of intradayBars) { const c = Number(b.close), v = Number(b.volume); if (c && v) { cvp += c * v; cv += v } } return cv > 0 ? (cvp / cv).toFixed(2) : '-'; })() }}</span>
+            <span class="ma-item">昨收 {{ intradayPrevClose?.toFixed(2) || '-' }}</span>
+            <span class="ma-item" :class="intradayBars.length && intradayPrevClose ? (Number(intradayBars[intradayBars.length-1].close) >= intradayPrevClose ? 'num-up' : 'num-down') : ''">
+              涨跌 {{ intradayBars.length && intradayPrevClose ? (Number(intradayBars[intradayBars.length-1].close) - intradayPrevClose).toFixed(2) : '-' }}
+            </span>
+            <span class="ma-item" :class="intradayBars.length && intradayPrevClose && intradayPrevClose > 0 ? (Number(intradayBars[intradayBars.length-1].close) >= intradayPrevClose ? 'num-up' : 'num-down') : ''">
+              涨幅 {{ intradayBars.length && intradayPrevClose && intradayPrevClose > 0 ? ((Number(intradayBars[intradayBars.length-1].close) - intradayPrevClose) / intradayPrevClose * 100).toFixed(2) + '%' : '-' }}
+            </span>
           </div>
         </section>
 
@@ -423,6 +527,11 @@ function activeDays(count: number) {
 
 .chart-container {
   width: 100%; height: 360px; border-radius: var(--radius);
+  overflow: hidden; border: 1px solid var(--border); position: relative;
+  background: var(--bg-surface);
+}
+.intraday-chart-container {
+  width: 100%; height: 320px; border-radius: var(--radius);
   overflow: hidden; border: 1px solid var(--border); position: relative;
   background: var(--bg-surface);
 }

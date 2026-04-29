@@ -104,6 +104,31 @@ def stock_detail(code: str):
     }
 
 
+@router.get("/stocks/{code}/intraday")
+def stock_intraday(code: str):
+    from database import engine
+    from services.data_fetcher import fetch_intraday_sina
+
+    bars_df = fetch_intraday_sina(code)
+    bars = bars_df.where(bars_df.notna(), None).to_dict(orient="records") if not bars_df.empty else []
+
+    # Get prev_close from yesterday's stock_daily row
+    prev_close = None
+    try:
+        import pandas as pd
+        query = "SELECT close FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 2"
+        with engine.connect() as conn:
+            df = pd.read_sql_query(query, conn, params={"code": code})
+        if len(df) >= 2:
+            prev_close = float(df.iloc[1]["close"])
+        elif len(df) == 1:
+            prev_close = float(df.iloc[0]["close"])
+    except Exception:
+        pass
+
+    return {"bars": bars, "prev_close": prev_close}
+
+
 @router.get("/concepts")
 def list_concepts():
     from database import engine
