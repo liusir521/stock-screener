@@ -336,6 +336,12 @@ function renderIntradayChart() {
   const fullFrom = Math.floor(dayStart.getTime() / 1000) as UTCTimestamp
   const fullTo   = Math.floor(dayEnd.getTime() / 1000) as UTCTimestamp
 
+  const fmtTime = (ts: Time) => {
+    const unix = ts as number
+    const d = new Date(unix * 1000)
+    return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
+  }
+
   const colors = chartColors()
   intradayChart = createChart(el, {
     height: 320,
@@ -344,11 +350,9 @@ function renderIntradayChart() {
     timeScale: {
       borderColor: colors.grid,
       timeVisible: true,
-      tickMarkFormatter: (ts: Time) => {
-        const d = new Date((ts as number) * 1000)
-        return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
-      },
+      tickMarkFormatter: fmtTime,
     },
+    localization: { timeFormatter: fmtTime },
     leftPriceScale: { borderColor: colors.grid, visible: true },
     rightPriceScale: { visible: false },
   })
