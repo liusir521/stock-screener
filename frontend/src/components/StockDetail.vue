@@ -47,7 +47,7 @@ watch(() => props.code, async (newCode) => {
     // Merge today's intraday bars into daily K-line data (synthesize daily candle)
     if (idata.bars && idata.bars.length > 0) {
       const bars = idata.bars
-      const today = String(bars[0].date).split(' ')[0]
+      const today = new Date().toISOString().split('T')[0]
       const opens = bars.map(b => Number(b.open ?? b.close)).filter(v => v > 0)
       const highs = bars.map(b => Number(b.high ?? b.close)).filter(v => v > 0)
       const lows = bars.map(b => Number(b.low ?? b.close)).filter(v => v > 0)
