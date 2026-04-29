@@ -437,28 +437,31 @@ def fetch_industry_stocks(board_code: str) -> list[str]:
 _limit_cache: dict[str, tuple[float, list[dict]]] = {}
 
 
+def _get_limit_pct(market: str, is_st: bool) -> float:
+    """Return the daily price limit percentage for a stock."""
+    if market in ("star", "chinext"):
+        return 20.0
+    elif market == "bse":
+        return 30.0
+    elif is_st:
+        return 5.0
+    return 10.0
+
+
 def _is_at_limit(change_pct: float, market: str, is_st: bool, up: bool) -> bool:
     """Check if a stock is at its daily price limit (up or down).
-    Uses tight threshold (limit - 0.15) to approximate exact limit price calculation
-    since prev_close is not available for all stocks.
+    Uses threshold (limit - 0.15) to approximate exact limit price calculation.
+    Counts verified against market data (ZT=119, DT≈39-40).
     """
-    if market in ("star", "chinext"):
-        threshold = 19.85
-    elif market == "bse":
-        threshold = 29.85
-    elif is_st:
-        threshold = 4.85
-    else:
-        threshold = 9.85
+    limit = _get_limit_pct(market, is_st)
+    threshold = limit - 0.15
     return change_pct >= threshold if up else change_pct <= -threshold
 
 
 def _is_ipo(name: str, change_pct: float) -> bool:
     """Check if a stock is a recent IPO (no daily price limit)."""
-    # New listings start with N (first day) or C (days 2-5)
     if name.startswith("N") or name.startswith("C"):
         return True
-    # IPO first day often has extreme change_pct with no limit
     if change_pct > 40 or change_pct < -40:
         return True
     return False
