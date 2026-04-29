@@ -42,6 +42,9 @@ watch(() => props.code, async (newCode) => {
     // Show newest data first in table
     data.daily = data.daily.reverse()
     detail.value = data
+    await nextTick()
+    await new Promise(r => setTimeout(r, 300))
+    renderCharts()
   } finally {
     loading.value = false
   }
@@ -87,12 +90,10 @@ function updateChartTheme() {
   if (macdChart) macdChart.applyOptions({ ...opts, leftPriceScale: undefined, rightPriceScale: { borderColor: colors.grid } })
 }
 
-watch(() => detail.value.daily, async (daily) => {
+function renderCharts() {
   destroyChart()
+  const daily = detail.value.daily
   if (!daily.length) return
-  await nextTick()
-  // Wait for the drawer slide-in layout to complete
-  await new Promise(r => setTimeout(r, 100))
   if (!chartContainer.value) return
 
   const hasOHLC = daily[0] && 'open' in daily[0]
@@ -225,19 +226,17 @@ watch(() => detail.value.daily, async (daily) => {
       grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
       crosshair: { mode: CrosshairMode.Normal },
       timeScale: { borderColor: colors.grid, timeVisible: false },
-      rightPriceScale: { borderColor: colors.grid, visible: true },
+      rightPriceScale: { borderColor: colors.grid, visible: true, autoScale: true },
       leftPriceScale: { visible: false },
     })
 
-    // Sync time scale with main chart
+    // Sync MACD time scale to follow price chart
     const priceTimeScale = chart!.timeScale()
     const macdTimeScale = macdChart.timeScale()
-    macdTimeScale.setVisibleRange(priceTimeScale.getVisibleRange()!)
+    const visibleRange = priceTimeScale.getVisibleRange()
+    if (visibleRange) macdTimeScale.setVisibleRange(visibleRange)
     priceTimeScale.subscribeVisibleTimeRangeChange(range => {
-      if (range) macdTimeScale.setVisibleRange(range)
-    })
-    priceTimeScale.subscribeVisibleLogicalRangeChange(() => {
-      // keep visual sync
+      if (range && macdChart) macdTimeScale.setVisibleRange(range)
     })
 
     const macdColors = { dif: '#f59e0b', dea: '#3b82f6', barUp: '#ef4444', barDown: '#22c55e' }
@@ -252,14 +251,16 @@ watch(() => detail.value.daily, async (daily) => {
     })
     deaSeries.setData(dea.map((v, i) => ({ time: String(chronological[i].date), value: v })))
 
-    const macdSeries = macdChart.addSeries(HistogramSeries, { priceScaleId: 'right' })
+    const macdSeries = macdChart.addSeries(HistogramSeries, {
+      priceScaleId: 'right',
+    })
     macdSeries.setData(macdBars.map((v, i) => ({
       time: String(chronological[i].date),
       value: v,
       color: v >= 0 ? macdColors.barUp : macdColors.barDown,
     })))
 
-    // Clean up branding link in MACD chart too
+    // Remove branding link in MACD chart
     macdContainer.value.querySelectorAll('a').forEach(el => {
       if (el.href && el.href.includes('tradingview')) el.remove()
     })
@@ -274,7 +275,7 @@ watch(() => detail.value.daily, async (daily) => {
     }
   })
   ro.observe(chartContainer.value)
-})
+}
 
 function fmt(val: unknown, col?: string): string {
   if (val === null || val === undefined) return '-'
@@ -415,11 +416,7 @@ function activeDays(count: number) {
 .detail-section { margin-bottom: 24px; }
 .section-title {
   font-size: 14px; font-weight: 700; color: var(--text-primary);
-  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
-}
-.section-title::before {
-  content: ''; display: inline-block; width: 3px; height: 14px;
-  background: var(--accent); border-radius: 2px;
+  margin-bottom: 10px;
 }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .detail-item {
