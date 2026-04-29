@@ -398,7 +398,8 @@ function renderIntradayChart() {
       color: isDark() ? '#94a3b8' : '#64748b',
       lineWidth: 1,
       lineStyle: 2, // dashed
-      axisLabelVisible: false,
+      axisLabelVisible: true,
+      title: '0.00%',
     })
   }
 
@@ -688,4 +689,12 @@ function activeDays(count: number) {
 /* Color coding */
 .num-up { color: var(--red) !important; font-weight: 500; }
 .num-down { color: var(--green) !important; font-weight: 500; }
+</style>
+
+<style>
+/* Remove price line label background in intraday chart */
+#intraday-chart-area [style*="background"] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
 </style>
