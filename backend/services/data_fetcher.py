@@ -130,8 +130,12 @@ def fetch_daily_indicators(date: str | None = None) -> pd.DataFrame:
 
 
 def _sina_symbol(code: str) -> str:
-    """Convert stock code to Sina symbol prefix (sh/sz)."""
-    return "sh" + code if code.startswith("6") else "sz" + code
+    """Convert stock code to Sina symbol prefix (sh/sz/bj)."""
+    if code.startswith("6"):
+        return "sh" + code
+    elif code.startswith(("8", "4", "92")):
+        return "bj" + code
+    return "sz" + code
 
 
 def fetch_kline_sina(code: str, days: int = 60) -> pd.DataFrame:
