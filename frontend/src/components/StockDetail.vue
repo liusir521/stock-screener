@@ -220,9 +220,10 @@ function renderCharts() {
   }
 
   // MACD chart (separate pane below price chart)
-  if (macdContainer.value) {
+  const macdEl = macdContainer.value || (chartContainer.value?.parentElement?.querySelector('.macd-chart') as HTMLDivElement | null)
+  if (macdEl) {
     try {
-      macdChart = createChart(macdContainer.value, {
+      macdChart = createChart(macdEl, {
         height: 140,
         layout: { background: { color: colors.bg }, textColor: colors.text },
         grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
@@ -258,7 +259,7 @@ function renderCharts() {
         color: v >= 0 ? macdColors.barUp : macdColors.barDown,
       })))
 
-      macdContainer.value.querySelectorAll('a').forEach(el => {
+      macdEl.querySelectorAll('a').forEach(el => {
         if (el.href && el.href.includes('tradingview')) el.remove()
       })
     } catch (e) {
