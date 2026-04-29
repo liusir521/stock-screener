@@ -42,6 +42,7 @@ watch(() => props.code, async (newCode) => {
     // Show newest data first in table
     data.daily = data.daily.reverse()
     detail.value = data
+    loading.value = false
     await nextTick()
     await new Promise(r => setTimeout(r, 300))
     renderCharts()
