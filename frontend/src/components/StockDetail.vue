@@ -391,18 +391,16 @@ function renderIntradayChart() {
   })
   avgSeries.setData(bars.map((d, i) => ({ time: toTs(d.date), value: avgPrices[i] })))
 
-  // 0-axis line (yesterday's close) — span full trading day
+  // 0-axis line (yesterday's close) via price line — thinner, dashed, like 同花顺
   if (intradayPrevClose.value && intradayPrevClose.value > 0) {
-    const zeroLine = intradayChart.addSeries(LineSeries, {
-      color: isDark() ? '#cbd5e1' : '#475569',
-      lineWidth: 2,
-      lineStyle: 0, // solid
-      lastValueVisible: false,
+    priceSeries.createPriceLine({
+      price: intradayPrevClose.value,
+      color: isDark() ? '#94a3b8' : '#64748b',
+      lineWidth: 1,
+      lineStyle: 2, // dashed
+      axisLabelVisible: true,
+      title: '0.00%',
     })
-    zeroLine.setData([
-      { time: fullFrom, value: intradayPrevClose.value },
-      { time: fullTo, value: intradayPrevClose.value },
-    ])
   }
 
   // Volume bars
