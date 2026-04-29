@@ -13,6 +13,7 @@ def get_all_stocks_df() -> pd.DataFrame:
                d.market_cap, d.dividend_yield, d.change_pct, d.volume_ratio
         FROM stock_basic b
         LEFT JOIN stock_daily d ON b.code = d.code
+            AND d.date = (SELECT MAX(date) FROM stock_daily WHERE code = b.code)
     """
     with engine.connect() as conn:
         df = pd.read_sql_query(query, conn)
