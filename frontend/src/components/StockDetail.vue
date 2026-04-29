@@ -80,7 +80,9 @@ watch(() => props.code, async (newCode) => {
     data.daily = data.daily.reverse()
     detail.value = data
     intradayBars.value = idata.bars || []
-    intradayPrevClose.value = idata.prev_close
+    // Compute prevClose from daily data (newest-first): index 1 = yesterday
+    const pc = data.daily.length > 1 ? Number(data.daily[1].close) : Number(idata.prev_close || 0)
+    intradayPrevClose.value = pc > 0 ? pc : null
     loading.value = false
     await nextTick()
     await new Promise(r => setTimeout(r, 300))
@@ -391,7 +393,7 @@ function renderIntradayChart() {
   })
   avgSeries.setData(bars.map((d, i) => ({ time: toTs(d.date), value: avgPrices[i] })))
 
-  // 0-axis line (yesterday's close) via price line — thinner, dashed, like 同花顺
+  // 0-axis line (yesterday's close) — thinner, dashed, like 同花顺
   if (intradayPrevClose.value && intradayPrevClose.value > 0) {
     priceSeries.createPriceLine({
       price: intradayPrevClose.value,
@@ -400,6 +402,8 @@ function renderIntradayChart() {
       lineStyle: 2, // dashed
       axisLabelVisible: true,
       title: '0.00%',
+      axisLabelColor: isDark() ? '#0f172a' : '#ffffff',
+      axisLabelTextColor: isDark() ? '#94a3b8' : '#64748b',
     })
   }
 
@@ -689,12 +693,4 @@ function activeDays(count: number) {
 /* Color coding */
 .num-up { color: var(--red) !important; font-weight: 500; }
 .num-down { color: var(--green) !important; font-weight: 500; }
-</style>
-
-<style>
-/* Remove price line label background in intraday chart */
-#intraday-chart-area [style*="background"] {
-  background: transparent !important;
-  background-color: transparent !important;
-}
 </style>
