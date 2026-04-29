@@ -85,11 +85,11 @@ def stock_detail(code: str):
     if daily_data and 'turnover_rate' not in daily_data[0] and 'float_shares' not in daily_data[0]:
         float_shares = 0
         try:
-            fs_query = "SELECT float_shares FROM stock_daily WHERE code = :code"
+            fs_query = "SELECT float_shares FROM stock_daily WHERE code = :code AND float_shares > 0 ORDER BY date DESC LIMIT 1"
             with engine.connect() as conn:
                 row = conn.execute(text(fs_query), {"code": code}).fetchone()
                 if row:
-                    float_shares = float(row[0] or 0)
+                    float_shares = float(row[0])
         except Exception:
             pass
         if float_shares > 0:
