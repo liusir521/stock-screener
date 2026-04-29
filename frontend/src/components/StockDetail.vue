@@ -398,8 +398,7 @@ function renderIntradayChart() {
       color: isDark() ? '#94a3b8' : '#64748b',
       lineWidth: 1,
       lineStyle: 2, // dashed
-      axisLabelVisible: true,
-      title: '0.00%',
+      axisLabelVisible: false,
     })
   }
 
