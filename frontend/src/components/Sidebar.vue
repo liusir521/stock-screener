@@ -139,8 +139,10 @@ function handleReset() {
   technical.value = { turnover_rate: [0, 20], change_pct: [-10, 10], volume_ratio: [0, 10] }
   selectedConcepts.value = new Set()
   currentFilters.value = {}
-  emit('search', {})
+  emit('search', { exclude_st: 'false', page: '1', page_size: '50' })
 }
+
+defineExpose({ handleReset })
 
 function handleLoadStrategy(filters: Record<string, string>) {
   if (filters.market) market.value = filters.market

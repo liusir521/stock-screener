@@ -147,6 +147,11 @@ function renderCharts() {
   const hasOHLC = source[0] && 'open' in source[0]
   if (!hasOHLC) return
 
+  // Chart expects chronological order (oldest first) — daily is newest-first, klineData is oldest-first
+  const chronological = klinePeriod.value === 'daily'
+    ? [...source].reverse()
+    : [...source]
+
   const colors = chartColors()
   chart = createChart(chartContainer.value, {
     height: 360,
@@ -168,11 +173,6 @@ function renderCharts() {
   chartContainer.value.querySelectorAll('a').forEach(el => {
     if (el.href && el.href.includes('tradingview')) el.remove()
   })
-
-  // Chart expects chronological order (oldest first) — daily is newest-first, klineData is oldest-first
-  const chronological = klinePeriod.value === 'daily'
-    ? [...source].reverse()
-    : [...source]
 
   const candleSeries = chart.addSeries(CandlestickSeries, {
     upColor: colors.up, downColor: colors.down,
@@ -426,6 +426,36 @@ function renderIntradayChart() {
   // Force full trading day width (9:30–15:00)
   intradayChart.timeScale().setVisibleRange({ from: fullFrom, to: fullTo })
 
+  // Crosshair tooltip
+  const tooltipEl = document.createElement('div')
+  Object.assign(tooltipEl.style, {
+    position: 'absolute', display: 'none', padding: '3px 8px',
+    background: colors.bg, color: colors.text,
+    border: '1px solid ' + colors.grid, borderRadius: '4px',
+    fontSize: '11px', pointerEvents: 'none', zIndex: '100',
+    whiteSpace: 'nowrap', fontFamily: 'monospace',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+  })
+  el.style.position = 'relative'
+  el.appendChild(tooltipEl)
+
+  intradayChart.subscribeCrosshairMove(param => {
+    if (!param.time || !param.point) { tooltipEl.style.display = 'none'; return }
+    const data = param.seriesData.get(priceSeries) as { value: number } | undefined
+    if (!data) { tooltipEl.style.display = 'none'; return }
+    const price = data.value
+    const pc = intradayPrevClose.value
+    const pct = (pc && pc > 0) ? ((price - pc) / pc * 100) : 0
+    const color = pct >= 0 ? 'var(--red)' : 'var(--green)'
+    const sign = pct >= 0 ? '+' : ''
+    tooltipEl.innerHTML = fmtTime(param.time) + '  ' + price.toFixed(2) + '  <span style="color:' + color + ';font-weight:500">' + sign + pct.toFixed(2) + '%</span>'
+    tooltipEl.style.display = 'block'
+    const x = Math.min(param.point.x + 12, el.clientWidth - tooltipEl.offsetWidth - 4)
+    const y = Math.max(param.point.y - 24, 4)
+    tooltipEl.style.left = x + 'px'
+    tooltipEl.style.top = y + 'px'
+  })
+
   // ResizeObserver
   const ro = new ResizeObserver(() => {
     if (intradayChart && el) {
@@ -586,7 +616,7 @@ function activeDays(count: number) {
 
 <style scoped>
 .drawer-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 250;
   display: flex; justify-content: flex-end;
   backdrop-filter: blur(2px);
 }
@@ -631,9 +661,11 @@ function activeDays(count: number) {
 .detail-value { color: var(--text-primary); font-weight: 600; font-size: 14px; }
 
 .chart-container {
-  width: 100%; height: 360px; border-radius: var(--radius);
-  overflow: hidden; border: 1px solid var(--border); position: relative;
+  width: 100%; height: 360px;
+  overflow: hidden; position: relative;
   background: var(--bg-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 .intraday-chart-container {
   width: 100%; height: 320px; border-radius: var(--radius);

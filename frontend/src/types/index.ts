@@ -43,3 +43,19 @@ export interface StockDetail {
   basic: StockItem | null
   daily: StockItem[]
 }
+
+export interface AiConfig {
+  api_url: string
+  model: string
+  has_key: boolean
+}
+
+export interface AgentMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface AgentChatResponse {
+  reply: string
+  data?: Record<string, unknown>
+}

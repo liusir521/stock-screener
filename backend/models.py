@@ -28,6 +28,9 @@ class StockDaily(Base):
 
     code: Mapped[str] = mapped_column(Text, primary_key=True)
     date: Mapped[str] = mapped_column(Text, primary_key=True)
+    open: Mapped[float] = mapped_column(Float, default=0)
+    high: Mapped[float] = mapped_column(Float, default=0)
+    low: Mapped[float] = mapped_column(Float, default=0)
     close: Mapped[float] = mapped_column(Float, default=0)
     volume: Mapped[float] = mapped_column(Float, default=0)
     turnover_rate: Mapped[float] = mapped_column(Float, default=0)

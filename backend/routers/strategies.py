@@ -69,7 +69,11 @@ def _save_strategies(strategies: list[dict]):
 
 @router.get("/strategies")
 def list_strategies():
-    return {"strategies": _load_strategies()}
+    preset_names = {p["name"] for p in _presets()}
+    strategies = _load_strategies()
+    for s in strategies:
+        s["preset"] = s["name"] in preset_names
+    return {"strategies": strategies}
 
 
 @router.post("/strategies")
@@ -90,6 +94,7 @@ def strategy_dashboard():
     from services.screener import get_all_stocks_df, apply_filters
 
     strategies = _load_strategies()
+    preset_names = {p["name"] for p in _presets()}
     df = get_all_stocks_df()
 
     # Run each strategy
@@ -109,6 +114,7 @@ def strategy_dashboard():
             "filters": s["filters"],
             "match_count": len(filtered),
             "top_stocks": top5,
+            "preset": s["name"] in preset_names,
         })
 
     # Compute intersections (pairs that have meaningful overlap)
@@ -133,6 +139,43 @@ def strategy_dashboard():
         "intersections": intersections[:10],
         "total_stocks": len(df),
     }
+
+
+@router.get("/strategies/intersection")
+def strategy_intersection(names: str = ""):
+    """Return all stocks that match ALL of the named strategies (intersection)."""
+    from services.screener import get_all_stocks_df, apply_filters
+
+    if not names.strip():
+        return {"stocks": [], "strategies": [], "count": 0}
+
+    target_names = [n.strip() for n in names.split(",") if n.strip()]
+    if len(target_names) < 2:
+        return {"stocks": [], "strategies": target_names, "count": 0}
+
+    strategies = _load_strategies()
+    strategy_map = {s["name"]: s for s in strategies}
+    selected = [strategy_map[n] for n in target_names if n in strategy_map]
+    if len(selected) < 2:
+        return {"stocks": [], "strategies": target_names, "count": 0}
+
+    df = get_all_stocks_df()
+    code_sets = []
+    for s in selected:
+        filtered = apply_filters(df, s["filters"])
+        code_sets.append(set(filtered["code"].tolist()))
+
+    common_codes = code_sets[0]
+    for cs in code_sets[1:]:
+        common_codes = common_codes & cs
+
+    df = df[df["code"].isin(common_codes)]
+    cols = ["code", "name", "close", "change_pct", "pe_ttm", "pb", "roe", "market_cap", "turnover_rate", "volume_ratio"]
+    available = [c for c in cols if c in df.columns]
+    stocks = df[available].where(df.notna(), None).to_dict(orient="records")
+    stocks.sort(key=lambda x: float(x.get("change_pct") or 0), reverse=True)
+
+    return {"stocks": stocks, "strategies": target_names, "count": len(stocks)}
 
 
 @router.delete("/strategies/{name}")

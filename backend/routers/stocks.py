@@ -26,6 +26,7 @@ def list_stocks(
     change_pct_max: float | None = Query(None),
     volume_ratio_min: float | None = Query(None),
     concept: str | None = Query(None),
+    codes: str | None = Query(None),
     exclude_st: bool = Query(True),
     sort_by: str = Query("code"),
     order: str = Query("asc"),
@@ -41,6 +42,7 @@ def list_stocks(
         "industry": industry, "industry_name": industry_name,
         "change_pct_min": change_pct_min, "change_pct_max": change_pct_max,
         "volume_ratio_min": volume_ratio_min, "concept": concept,
+        "codes": codes,
         "exclude_st": exclude_st, "sort_by": sort_by, "order": order,
     }.items() if v is not None}
 

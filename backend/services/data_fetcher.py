@@ -330,72 +330,162 @@ def fetch_corp_info(code: str) -> dict[str, str]:
     return result
 
 
+# ----- Financial growth & dividend data -----
+_financial_cache: dict[str, tuple[float, float]] = {}  # code -> (revenue_growth, roe)
+
+
+def fetch_financial_growth(code: str) -> tuple[float, float]:
+    """Fetch revenue growth rate and actual ROE from Sina finance report API.
+    Returns (revenue_growth, roe). Cached in memory per session."""
+    if code in _financial_cache:
+        return _financial_cache[code]
+
+    if code.startswith(("8", "4", "92")):
+        _financial_cache[code] = (0, 0)
+        return (0, 0)
+
+    prefix = "sh" if code.startswith("6") else "sz"
+    try:
+        url = "https://quotes.sina.cn/cn/api/openapi.php/CompanyFinanceService.getFinanceReport2022"
+        params = {"paperCode": f"{prefix}{code}", "source": "gjzb", "type": "0", "page": "1", "num": "1"}
+        r = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        data = r.json()
+        report_list = data["result"]["data"]["report_list"]
+        first_key = list(report_list.keys())[0]
+        items = report_list[first_key]["data"]
+        rev_growth = 0.0
+        roe = 0.0
+        for item in items:
+            title = item.get("item_title", "")
+            val = item.get("item_value")
+            if title == "营业总收入增长率" and val is not None:
+                rev_growth = float(val)
+            elif title == "净资产收益率(ROE)" and val is not None:
+                roe = float(val)
+        _financial_cache[code] = (rev_growth, roe)
+    except Exception:
+        _financial_cache[code] = (0, 0)
+
+    return _financial_cache[code]
+
+
+def batch_fetch_financial_growth(codes: list[str], max_workers: int = 20) -> dict[str, tuple[float, float]]:
+    """Fetch financial growth data for many stocks in parallel."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    result: dict[str, tuple[float, float]] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        fut = {pool.submit(fetch_financial_growth, c): c for c in codes}
+        for i, f in enumerate(as_completed(fut)):
+            c = fut[f]
+            try:
+                result[c] = f.result()
+            except Exception:
+                result[c] = (0, 0)
+    return result
+
+
+def compute_dividend_yield(code: str, current_price: float) -> float:
+    """Compute trailing 12-month dividend yield (%) from dividend history.
+    Sums all implemented (实施) dividends with ex-dividend dates in the past year."""
+    if current_price <= 0:
+        return 0
+    try:
+        import akshare as ak
+        df = ak.stock_history_dividend_detail(symbol=code, indicator="分红")
+        if df.empty:
+            return 0
+        from datetime import date, timedelta
+        cutoff = date.today() - timedelta(days=365)
+        total_div = 0.0
+        for _, row in df.iterrows():
+            status = str(row.iloc[4])
+            if "实施" not in status:
+                continue
+            ex_date = row.iloc[5]  # 除权除息日
+            ann_date = row.iloc[0]  # 公告日期
+            d = ex_date if hasattr(ex_date, 'year') else ann_date
+            if not hasattr(d, 'year'):
+                continue
+            # Convert to date for comparison
+            d_date = d if isinstance(d, date) else date(d.year, d.month, d.day)
+            if d_date >= cutoff:
+                total_div += float(row.iloc[3] or 0)
+        # If no recent dividend found, use the most recent implemented one
+        if total_div == 0:
+            for _, row in df.iterrows():
+                if "实施" in str(row.iloc[4]):
+                    total_div = float(row.iloc[3] or 0)
+                    break
+        # 派息 is per 10 shares, divide to get per-share yield
+        return round(total_div / 10 / current_price * 100, 2)
+    except Exception:
+        return 0
+
+
 # ----- Sector ranking (cached 60s) -----
 _sector_cache: dict[str, tuple[float, list[dict]]] = {}
 
 
 def fetch_sector_ranking() -> list[dict]:
-    """Fetch industry sector performance ranking from同花顺. Cached 60s."""
+    """Compute sector/industry performance ranking from local stock data.
+    Groups stocks by their Sina industry field, computes average change_pct
+    and identifies the leader stock for each industry. Cached 60s."""
     import time
-    from io import StringIO
     import pandas as pd
-    from bs4 import BeautifulSoup
+    from database import engine
 
     now = time.time()
     entry = _sector_cache.get("ranking")
     if entry and now - entry[0] < 60:
         return entry[1]
 
+    result: list[dict] = []
+
     try:
-        s = _sina_session()
-        r = s.get("https://q.10jqka.com.cn/thshy/",
-                  headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
-        r.raise_for_status()
-        decoded = r.content.decode("gbk", errors="replace")
+        query = """
+            SELECT b.industry, b.code, b.name,
+                   d.change_pct, d.turnover_rate
+            FROM stock_basic b
+            JOIN stock_daily d ON b.code = d.code
+                AND d.date = (SELECT MAX(date) FROM stock_daily WHERE code = b.code)
+            WHERE b.industry != '' AND b.industry IS NOT NULL
+        """
+        with engine.connect() as conn:
+            df = pd.read_sql_query(query, conn)
 
-        # Parse table data
-        tables = pd.read_html(StringIO(decoded))
-        df = tables[0]
-        df.columns = [str(c) for c in df.columns]
+        if df.empty:
+            _sector_cache["ranking"] = (now, result)
+            return result
 
-        # Parse sector codes from links
-        soup = BeautifulSoup(decoded, "html.parser")
-        code_map: dict[str, str] = {}
-        for row in soup.select("table tbody tr"):
-            cells = row.find_all("td")
-            if len(cells) >= 2:
-                name_a = cells[1].find("a")
-                if name_a and "thshy/detail/code/" in name_a.get("href", ""):
-                    href = name_a["href"]
-                    code = href.rstrip("/").split("/")[-1]
-                    name = name_a.get_text(strip=True)
-                    code_map[name] = code
+        # Group by industry
+        groups = df.groupby("industry")
+        for ind_name, group in groups:
+            avg_chg = group["change_pct"].mean()
+            avg_turnover = group["turnover_rate"].mean()
+            # Leader stock = highest change_pct
+            leader_idx = group["change_pct"].idxmax()
+            leader = group.loc[leader_idx]
 
-        # Map columns
-        col_map = {"板块": "name", "涨跌幅(%)": "change_pct", "领涨股": "lead_stock"}
-        df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+            result.append({
+                "code": ind_name,       # industry name as the lookup key
+                "name": ind_name,
+                "change_pct": round(float(avg_chg), 2),
+                "turnover_rate": round(float(avg_turnover), 2),
+                "lead_stock": str(leader["name"]),
+                "lead_stock_change": round(float(leader["change_pct"]), 2),
+                "stock_count": len(group),
+            })
 
-        # Find lead stock change column (涨跌幅(%).1)
-        lead_chg_col = next((c for c in df.columns if "涨跌幅" in str(c) and "." in str(c)), None)
+        # Keep only industries with >= 5 stocks, sort by change_pct descending
+        result = [r for r in result if r["stock_count"] >= 5]
+        result.sort(key=lambda x: x["change_pct"], reverse=True)
 
-        result: list[dict] = []
-        for _, row in df.iterrows():
-            name = str(row.get("name", ""))
-            r: dict = {
-                "code": code_map.get(name, ""),
-                "name": name,
-                "change_pct": float(row.get("change_pct", 0) or 0),
-                "turnover_rate": 0,  # not available on THS listing page
-                "lead_stock": str(row.get("lead_stock", "")),
-                "lead_stock_change": float(row.get(lead_chg_col, 0) or 0) if lead_chg_col else 0,
-            }
-            result.append(r)
-
-        _sector_cache["ranking"] = (now, result)
-        return result
     except Exception:
         entry = _sector_cache.get("ranking")
         return entry[1] if entry else []
+
+    _sector_cache["ranking"] = (now, result)
+    return result
 
 
 # ----- Industry constituent stocks (cached 300s) -----
@@ -403,34 +493,31 @@ _industry_stocks_cache: dict[str, tuple[float, list[str]]] = {}
 
 
 def fetch_industry_stocks(board_code: str) -> list[str]:
-    """Get stock codes in a同花顺 industry board. Cached 300s."""
+    """Get stock codes for a given industry name (Sina CSRC classification).
+    Cached 300s. Also handles legacy THS numeric board codes as fallback."""
     import time
-    from io import StringIO
     import pandas as pd
+    from database import engine
 
     now = time.time()
     entry = _industry_stocks_cache.get(board_code)
     if entry and now - entry[0] < 300:
         return entry[1]
 
+    result: list[str] = []
+
     try:
-        s = _sina_session()
-        url = f"http://q.10jqka.com.cn/thshy/detail/code/{board_code}/"
-        r = s.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
-        r.raise_for_status()
-        decoded = r.content.decode("gbk", errors="replace")
-
-        tables = pd.read_html(StringIO(decoded))
-        df = tables[0]
-        df.columns = [str(c) for c in df.columns]
-
-        code_col = "代码" if "代码" in df.columns else df.columns[1]
-        result = df[code_col].astype(str).tolist()
-        _industry_stocks_cache[board_code] = (now, result)
-        return result
+        # board_code is now the Sina industry name (e.g., "白酒", "集成电路")
+        df = pd.read_sql_query(
+            "SELECT code FROM stock_basic WHERE industry = :ind",
+            engine, params={"ind": board_code})
+        result = df["code"].astype(str).tolist()
     except Exception:
-        entry = _industry_stocks_cache.get(board_code)
-        return entry[1] if entry else []
+        pass
+
+    if result:
+        _industry_stocks_cache[board_code] = (now, result)
+    return result
 
 
 # ----- Limit-up/down stats (cached 60s) -----

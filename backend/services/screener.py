@@ -24,28 +24,36 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     """Apply screening conditions. Returns filtered DataFrame."""
     result = df.copy()
 
+    # Specific stock codes (comma-separated, used by watchlist-only mode)
+    if filters.get("codes"):
+        target_codes = set(c.strip() for c in filters["codes"].split(",") if c.strip())
+        if target_codes:
+            result = result[result["code"].isin(target_codes)]
+
     # Keyword search (name or code)
     if filters.get("keyword"):
         kw = filters["keyword"]
         result = result[result["code"].str.contains(kw, case=False, na=False) |
                         result["name"].str.contains(kw, case=False, na=False)]
 
-    # Industry filter (from sector ranking click)
+    # Industry filter (from sector ranking click — industry is the Sina industry name)
     if filters.get("industry"):
         ind_val = filters["industry"]
         ind_name = filters.get("industry_name", "")
         search_name = ind_name or ind_val
 
-        # Step 1: if it's a sector code (digits), try constituent API
+        # Try exact match on industry field first
         codes: set[str] = set()
-        if ind_val.isdigit():
-            from services.data_fetcher import fetch_industry_stocks
-            codes = set(fetch_industry_stocks(ind_val))
+        from services.data_fetcher import fetch_industry_stocks
+        codes = set(fetch_industry_stocks(search_name))
 
         if codes:
             result = result[result["code"].isin(codes)]
+        elif "industry" in result.columns:
+            # Fall back to substring match on industry field
+            result = result[result["industry"].astype(str).str.contains(search_name, case=False, na=False)]
         else:
-            # Step 2: fall back to keyword search
+            # Last resort: keyword search on name/code
             result = result[result["code"].str.contains(search_name, case=False, na=False) |
                             result["name"].str.contains(search_name, case=False, na=False)]
 

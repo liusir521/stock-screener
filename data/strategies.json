@@ -2,31 +2,75 @@
   {
     "name": "高ROE成长股",
     "description": "ROE >= 15%，营收增长 >= 20%，寻找高质量成长企业",
-    "filters": {"roe_min": 15, "revenue_growth_min": 20, "exclude_st": true, "sort_by": "roe", "order": "desc"}
+    "filters": {
+      "roe_min": 15,
+      "revenue_growth_min": 20,
+      "exclude_st": true,
+      "sort_by": "roe",
+      "order": "desc"
+    }
   },
   {
     "name": "低估值蓝筹",
     "description": "PE <= 15，PB <= 1.5，股息率 >= 3%，筛选低估值高分红蓝筹",
-    "filters": {"pe_max": 15, "pb_max": 1.5, "dividend_yield_min": 3, "exclude_st": true, "sort_by": "pe_ttm", "order": "asc"}
+    "filters": {
+      "pe_max": 15,
+      "pb_max": 1.5,
+      "dividend_yield_min": 3,
+      "exclude_st": true,
+      "sort_by": "pe_ttm",
+      "order": "asc"
+    }
   },
   {
     "name": "均线多头排列",
     "description": "均线多头排列趋势向好，按市值排序",
-    "filters": {"exclude_st": true, "sort_by": "market_cap", "order": "desc"}
+    "filters": {
+      "exclude_st": true,
+      "sort_by": "market_cap",
+      "order": "desc"
+    }
   },
   {
     "name": "新高附近",
     "description": "股价接近新高，按收盘价排序",
-    "filters": {"exclude_st": true, "sort_by": "close", "order": "desc"}
+    "filters": {
+      "exclude_st": true,
+      "sort_by": "close",
+      "order": "desc"
+    }
   },
   {
     "name": "放量突破",
     "description": "量比 >= 2，涨幅 >= 3%，放量上攻形态",
-    "filters": {"volume_ratio_min": 2, "change_pct_min": 3, "exclude_st": true, "sort_by": "volume_ratio", "order": "desc"}
+    "filters": {
+      "volume_ratio_min": 2,
+      "change_pct_min": 3,
+      "exclude_st": true,
+      "sort_by": "volume_ratio",
+      "order": "desc"
+    }
   },
   {
     "name": "低位高换手",
     "description": "换手率 >= 5%，涨跌幅 -5%~5%，筛选活跃度提升标的",
-    "filters": {"turnover_rate_min": 5, "change_pct_min": -5, "change_pct_max": 5, "exclude_st": true, "sort_by": "turnover_rate", "order": "desc"}
+    "filters": {
+      "turnover_rate_min": 5,
+      "change_pct_min": -5,
+      "change_pct_max": 5,
+      "exclude_st": true,
+      "sort_by": "turnover_rate",
+      "order": "desc"
+    }
+  },
+  {
+    "name": "500亿市值沪主板",
+    "filters": {
+      "order": "desc",
+      "exclude_st": true,
+      "market": "sh_sz",
+      "market_cap_min": 500
+    },
+    "description": ""
   }
 ]

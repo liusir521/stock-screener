@@ -1,15 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import StockTable from './components/StockTable.vue'
 import StockDetail from './components/StockDetail.vue'
 import SectorRanking from './components/SectorRanking.vue'
 import LimitStats from './components/LimitStats.vue'
 import StrategyDashboard from './components/StrategyDashboard.vue'
+import AiSettings from './components/AiSettings.vue'
+import AgentChat from './components/AgentChat.vue'
 import { api } from './api'
 import { useWatchlist } from './composables/useWatchlist'
 
-const activeTab = ref<'stocks' | 'sectors' | 'limit' | 'strategies'>('stocks')
+const activeTab = ref<'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies'>(
+  (sessionStorage.getItem('activeTab') as 'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies') || 'stocks'
+)
+watch(activeTab, (val) => sessionStorage.setItem('activeTab', val))
 const isDark = ref(false)
 
 function toggleTheme() {
@@ -26,8 +31,15 @@ onMounted(() => {
   loadQuickStrategies()
 })
 
+const sidebarRef = ref<InstanceType<typeof Sidebar>>()
 const watchlist = useWatchlist()
 const watchlistOnly = ref(false)
+watch(watchlistOnly, () => {
+  const filters = { ...currentFilters.value }
+  delete filters.page
+  delete filters.page_size
+  handleSearch(filters)
+})
 const quickStrategies = ref<{ name: string; filters: Record<string, unknown> }[]>([])
 
 async function loadQuickStrategies() {
@@ -52,7 +64,11 @@ const sortOrder = computed(() => currentFilters.value.order || 'asc')
 
 async function handleSearch(filters: Record<string, string>) {
   loading.value = true
-  currentFilters.value = { ...filters, page: '1', page_size: '50' }
+  const params: Record<string, string> = { ...filters, page: '1', page_size: '50' }
+  if (watchlistOnly.value && watchlist.codes.value.size > 0) {
+    params.codes = [...watchlist.codes.value].join(',')
+  }
+  currentFilters.value = params
   try {
     const data = await api.getStocks(currentFilters.value)
     items.value = data.items
@@ -103,6 +119,7 @@ function handleSortChange(field: string) {
 }
 
 const refreshing = ref(false)
+const showAiSettings = ref(false)
 
 async function handleRefresh() {
   if (refreshing.value) return
@@ -135,6 +152,15 @@ function handleStockFromLimit(code: string) {
   selectedCode.value = code
 }
 
+function handleStockSelect(code: string) {
+  selectedCode.value = code
+}
+
+function handleReset() {
+  watchlistOnly.value = false
+  sidebarRef.value?.handleReset()
+}
+
 function handleApplyStrategy(filters: Record<string, unknown>) {
   const params: Record<string, string> = {}
   for (const [k, v] of Object.entries(filters)) {
@@ -148,7 +174,7 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
 
 <template>
   <div class="app-layout">
-    <Sidebar :watchlist-only="watchlistOnly" @search="handleSearch" @update:watchlist-only="watchlistOnly = $event" />
+    <Sidebar ref="sidebarRef" :watchlist-only="watchlistOnly" @search="handleSearch" @update:watchlist-only="watchlistOnly = $event" />
     <main class="main-content">
       <div class="top-bar">
         <span class="app-title">A股筛选器</span>
@@ -159,15 +185,16 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
           <button class="theme-toggle" @click="toggleTheme">
             {{ isDark ? '☀️ 明' : '🌙 暗' }}
           </button>
+          <button class="ai-settings-btn" title="AI 配置" @click="showAiSettings = true">⚙</button>
         </div>
       </div>
       <div class="tab-bar">
         <button
-          v-for="t in (['stocks', 'strategies', 'sectors', 'limit'] as const)"
+          v-for="t in (['agent', 'stocks', 'strategies', 'sectors', 'limit'] as const)"
           :key="t"
           :class="['tab-btn', { active: activeTab === t }]"
           @click="activeTab = t"
-        >{{ { stocks: '股票筛选', strategies: '策略', sectors: '板块排名', limit: '涨跌停板' }[t] }}</button>
+        >{{ { agent: 'AI 选股', stocks: '股票筛选', strategies: '策略', sectors: '板块排名', limit: '涨跌停板' }[t] }}</button>
       </div>
       <div v-if="activeTab === 'stocks'" class="strategy-chips">
         <span class="strategy-chips-label">快捷策略:</span>
@@ -176,7 +203,9 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
           class="strategy-chip"
           @click="handleApplyStrategy(s.filters)"
         >{{ s.name }}</button>
+        <button class="strategy-chip reset-chip" @click="handleReset">重置</button>
       </div>
+      <AgentChat v-if="activeTab === 'agent'" @select-stock="handleStockSelect" />
       <StockTable v-if="activeTab === 'stocks'"
         :items="displayItems" :total="total" :loading="loading"
         :current-page="currentPage" :sort-by="sortBy" :sort-order="sortOrder"
@@ -184,10 +213,11 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
         @page-change="handlePageChange" @sort-change="handleSortChange"
         @row-click="handleRowClick" @toggle-favorite="watchlist.toggle"
       />
-      <StrategyDashboard v-else-if="activeTab === 'strategies'" @apply-strategy="handleApplyStrategy" />
-      <SectorRanking v-else-if="activeTab === 'sectors'" @select-sector="handleSectorSelect" />
+      <StrategyDashboard v-else-if="activeTab === 'strategies'" @apply-strategy="handleApplyStrategy" @select-stock="handleStockSelect" />
+      <SectorRanking v-else-if="activeTab === 'sectors'" @select-stock="handleStockSelect" />
       <LimitStats v-else-if="activeTab === 'limit'" @select-stock="handleStockFromLimit" />
     </main>
+    <AiSettings v-if="showAiSettings" @close="showAiSettings = false" />
     <StockDetail :code="selectedCode" @close="selectedCode = null" />
   </div>
 </template>
@@ -285,6 +315,12 @@ body {
   cursor: pointer; transition: all var(--transition);
 }
 .theme-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ai-settings-btn {
+  padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--bg-surface); color: var(--text-secondary); font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: all var(--transition); line-height: 1;
+}
+.ai-settings-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .tab-bar {
   display: flex; gap: 0; background: var(--bg-surface); border-bottom: 1px solid var(--border);
   padding: 0 24px;
@@ -310,4 +346,6 @@ body {
   cursor: pointer; font-weight: 500; transition: all var(--transition); white-space: nowrap;
 }
 .strategy-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.reset-chip { border-style: dashed; color: var(--text-muted); }
+.reset-chip:hover { border-color: var(--text-muted); color: var(--text-primary); background: var(--bg-hover); }
 </style>

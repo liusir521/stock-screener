@@ -66,8 +66,32 @@ def seed() -> dict:
                 daily_count += 1
             session.commit()
 
+            # Batch-fetch industry info from Sina corporate pages
+            codes = list(df["code"].tolist())
+            print(f"  Fetching industry info for {len(codes)} stocks...")
+            from services.data_fetcher import fetch_corp_info
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            updated_ind = 0
+            with ThreadPoolExecutor(max_workers=20) as pool:
+                fut = {pool.submit(fetch_corp_info, c): c for c in codes}
+                for i, f in enumerate(as_completed(fut)):
+                    c = fut[f]
+                    try:
+                        info = f.result()
+                        ind = info.get("industry", "")
+                        if ind:
+                            session.query(StockBasic).filter(StockBasic.code == c).update({"industry": ind})
+                            updated_ind += 1
+                    except Exception:
+                        pass
+                    if (i + 1) % 500 == 0:
+                        session.commit()
+                        print(f"    industry: {i + 1}/{len(codes)}")
+            session.commit()
+            print(f"  Industry updated: {updated_ind} stocks")
+
             # Compute volume_ratio via K-line data (parallel fetches)
-            codes = df["code"].tolist()
+            print(f"  Computing volume_ratio for {len(codes)} stocks...")
             print(f"  Computing volume_ratio for {len(codes)} stocks...")
             from services.data_fetcher import batch_compute_volume_ratios
             vr_map = batch_compute_volume_ratios(codes)
@@ -80,6 +104,53 @@ def seed() -> dict:
                     updated_vr += 1
             session.commit()
             print(f"  volume_ratio updated: {updated_vr} stocks")
+
+            # Fetch financial growth data (revenue_growth, ROE) from Sina finance report API
+            print(f"  Fetching financial growth data for {len(codes)} stocks...")
+            from services.data_fetcher import batch_fetch_financial_growth
+            fin_data = batch_fetch_financial_growth(codes)
+            updated_fin = 0
+            today = df.iloc[0]["date"]
+            for code, (rev_growth, roe) in fin_data.items():
+                updates = {}
+                if rev_growth != 0:
+                    updates["revenue_growth_3y"] = rev_growth
+                if roe > 0:
+                    updates["roe"] = roe
+                if updates:
+                    session.query(StockDaily).filter(
+                        StockDaily.code == code, StockDaily.date == today
+                    ).update(updates)
+                    updated_fin += 1
+            session.commit()
+            print(f"  Financial growth updated: {updated_fin} stocks")
+
+            # Compute dividend yields from dividend history
+            print(f"  Computing dividend yields for {len(codes)} stocks...")
+            from services.data_fetcher import compute_dividend_yield
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            updated_div = 0
+            with ThreadPoolExecutor(max_workers=20) as pool:
+                # Get current prices from the DataFrame
+                price_map = dict(zip(df["code"], df["close"]))
+                def _div_for(code):
+                    return code, compute_dividend_yield(code, float(price_map.get(code, 0)))
+                fut = {pool.submit(_div_for, c): c for c in codes}
+                for i, f in enumerate(as_completed(fut)):
+                    try:
+                        code, dy = f.result()
+                        if dy > 0:
+                            session.query(StockDaily).filter(
+                                StockDaily.code == code, StockDaily.date == today
+                            ).update({"dividend_yield": dy})
+                            updated_div += 1
+                    except Exception:
+                        pass
+                    if (i + 1) % 500 == 0:
+                        session.commit()
+                        print(f"    dividend: {i + 1}/{len(codes)}")
+            session.commit()
+            print(f"  Dividend yield updated: {updated_div} stocks")
 
             # Seed concept board data
             print("  Fetching concept board data...")

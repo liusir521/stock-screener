@@ -1,3 +1,5 @@
+import type { AiConfig, AgentChatResponse } from '../types'
+
 const BASE = '/api'
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
@@ -43,10 +45,24 @@ export const api = {
   getConcepts: () => get<{ concepts: { concept_name: string; stock_count: number }[] }>(`${BASE}/concepts`),
   getStockIntraday: (code: string) => get<{ bars: Record<string, unknown>[]; prev_close: number | null; float_shares: number; turnover_rate: number | null }>(`${BASE}/stocks/${code}/intraday`),
   getSectors: () => get<{ sectors: Record<string, unknown>[]; count: number }>(`${BASE}/sectors`),
+  getStrategyIntersection: (names: string[]) =>
+    get<{ stocks: Record<string, unknown>[]; strategies: string[]; count: number }>(`${BASE}/strategies/intersection`, { names: names.join(',') }),
   getLimitStats: () => get<{ zt_count: number; dt_count: number; zt_list: Record<string, unknown>[]; dt_list: Record<string, unknown>[] }>(`${BASE}/limit-stats`),
   getStrategyDashboard: () => get<{
     total_stocks: number
-    strategies: { name: string; description: string; filters: Record<string, unknown>; match_count: number; top_stocks: Record<string, unknown>[] }[]
+    strategies: { name: string; description: string; filters: Record<string, unknown>; match_count: number; top_stocks: Record<string, unknown>[]; preset: boolean }[]
     intersections: { strategies: string[]; count: number; sample_codes: string[] }[]
   }>(`${BASE}/strategies/dashboard`),
+  getAiConfig: () => get<AiConfig>(`${BASE}/ai-config`),
+  saveAiConfig: (config: { api_url: string; model: string; api_key?: string }) =>
+    post<{ status: string }>(`${BASE}/ai-config`, config),
+  agentChat: (message: string, history?: { role: string; content: string }[]) =>
+    post<AgentChatResponse>(`${BASE}/agent/chat`, { message, history }),
+  agentChatStream: (message: string, history?: { role: string; content: string }[], signal?: AbortSignal) =>
+    fetch(`${BASE}/agent/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history }),
+      signal,
+    }),
 }
