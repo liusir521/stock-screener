@@ -15,6 +15,44 @@ const error = ref('')
 const chatBody = ref<HTMLDivElement>()
 let abortController: AbortController | null = null
 
+// Context menu
+const ctxMenu = ref({ show: false, x: 0, y: 0, index: -1 })
+const ctxMenuRef = ref<HTMLDivElement>()
+
+function onContextMenu(event: MouseEvent, index: number) {
+  event.preventDefault()
+  ctxMenu.value = { show: true, x: event.clientX, y: event.clientY, index }
+  nextTick(() => {
+    // Auto-adjust position so menu fits in viewport
+    if (ctxMenuRef.value) {
+      const r = ctxMenuRef.value.getBoundingClientRect()
+      if (r.right > window.innerWidth) ctxMenu.value.x -= r.width
+      if (r.bottom > window.innerHeight) ctxMenu.value.y -= r.height
+    }
+  })
+}
+
+function hideContextMenu() {
+  ctxMenu.value.show = false
+}
+
+async function copyMessage(index: number) {
+  const raw = messages.value[index]?.content || ''
+  try {
+    await navigator.clipboard.writeText(raw)
+  } catch {
+    // Fallback
+    const ta = document.createElement('textarea')
+    ta.value = raw
+    ta.style.position = 'fixed'; ta.style.left = '-9999px'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+  hideContextMenu()
+}
+
 onMounted(() => {
   messages.value = [{
     role: 'assistant',
@@ -149,21 +187,37 @@ watch(messages, () => scrollToBottom(), { deep: true })
 
 <template>
   <div class="agent-chat">
-    <div class="chat-body" ref="chatBody" @click="handleStockClick">
+    <div class="chat-body" ref="chatBody" @click="handleStockClick" @click.capture="hideContextMenu">
       <div
         v-for="(msg, i) in messages"
         :key="i"
         :class="['chat-message', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
       >
-        <div class="chat-bubble">
+        <div class="chat-bubble" @contextmenu="onContextMenu($event, i)" v-if="msg.content">
           <div v-if="msg.role === 'assistant'" class="chat-content" v-html="renderMarkdown(msg.content)"></div>
           <div v-else class="chat-content">{{ msg.content }}</div>
-          <div v-if="msg.role === 'assistant' && !msg.content && loading" class="chat-loading">
+        </div>
+        <div v-else class="chat-bubble">
+          <div class="chat-loading">
             <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
           </div>
         </div>
       </div>
       <div v-if="error" class="chat-error">{{ error }}</div>
+      <!-- Context menu -->
+      <Teleport to="body">
+        <div
+          v-if="ctxMenu.show"
+          ref="ctxMenuRef"
+          class="ctx-menu"
+          :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+          @click.stop
+        >
+          <button class="ctx-menu-item" @click="copyMessage(ctxMenu.index)">
+            <span class="ctx-icon">📋</span> 复制
+          </button>
+        </div>
+      </Teleport>
     </div>
     <div class="chat-input-area">
       <input
@@ -286,4 +340,20 @@ watch(messages, () => scrollToBottom(), { deep: true })
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+/* Context menu */
+.ctx-menu {
+  position: fixed; z-index: 9999;
+  background: var(--bg-surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); box-shadow: 0 4px 16px var(--shadow-lg);
+  padding: 4px; min-width: 100px;
+}
+.ctx-menu-item {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; padding: 6px 10px; border: none; border-radius: 4px;
+  background: transparent; color: var(--text-primary); font-size: 12px;
+  cursor: pointer; font-family: inherit; text-align: left;
+}
+.ctx-menu-item:hover { background: var(--accent-light); color: var(--accent); }
+.ctx-icon { font-size: 12px; width: 16px; text-align: center; }
 </style>
