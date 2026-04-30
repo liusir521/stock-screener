@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted } from 'vue'
+import { ref, nextTick, watch, onMounted, computed } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { api } from '../api'
 import type { AgentMessage } from '../types'
@@ -8,6 +8,18 @@ const emit = defineEmits<{ 'select-stock': [code: string] }>()
 
 const md = new MarkdownIt({ breaks: true })
 
+interface Conversation {
+  id: string
+  title: string
+  messages: { role: string; content: string }[]
+  updatedAt: number
+}
+
+const STORAGE_KEY = 'agent_conversations'
+const ACTIVE_KEY = 'agent_active_conv'
+const MAX_MSGS = 60
+const WELCOME = '你好！我是 A 股 AI 分析助手。\n\n我可以帮你：\n- **技术分析**："分析贵州茅台的技术形态"\n- **股票筛选**："找 PE 小于 15 且 ROE 大于 20% 的股票"\n- **多股对比**："对比贵州茅台、五粮液和泸州老窖"\n- **市场全景**："今天市场怎么样"\n\n请先点击右上角 ⚙ 配置 AI Key，然后开始提问。'
+
 const messages = ref<{ role: string; content: string }[]>([])
 const input = ref('')
 const loading = ref(false)
@@ -15,49 +27,130 @@ const error = ref('')
 const chatBody = ref<HTMLDivElement>()
 let abortController: AbortController | null = null
 
-// Context menu
-const ctxMenu = ref({ show: false, x: 0, y: 0, index: -1 })
-const ctxMenuRef = ref<HTMLDivElement>()
+// ── Conversation management ──
+const conversations = ref<Conversation[]>([])
+const activeId = ref('')
+const showConvList = ref(false)
+const convDropdown = ref<HTMLDivElement>()
 
-function onContextMenu(event: MouseEvent, index: number) {
-  event.preventDefault()
-  ctxMenu.value = { show: true, x: event.clientX, y: event.clientY, index }
-  nextTick(() => {
-    // Auto-adjust position so menu fits in viewport
-    if (ctxMenuRef.value) {
-      const r = ctxMenuRef.value.getBoundingClientRect()
-      if (r.right > window.innerWidth) ctxMenu.value.x -= r.width
-      if (r.bottom > window.innerHeight) ctxMenu.value.y -= r.height
-    }
-  })
-}
-
-function hideContextMenu() {
-  ctxMenu.value.show = false
-}
-
-async function copyMessage(index: number) {
-  const raw = messages.value[index]?.content || ''
+function loadConversations() {
   try {
-    await navigator.clipboard.writeText(raw)
+    const raw = localStorage.getItem(STORAGE_KEY)
+    conversations.value = raw ? JSON.parse(raw) : []
   } catch {
-    // Fallback
-    const ta = document.createElement('textarea')
-    ta.value = raw
-    ta.style.position = 'fixed'; ta.style.left = '-9999px'
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    document.body.removeChild(ta)
+    conversations.value = []
   }
-  hideContextMenu()
 }
 
+function saveConversations() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.value))
+  } catch {
+    // localStorage full — trim oldest conversations
+    conversations.value.sort((a, b) => b.updatedAt - a.updatedAt)
+    conversations.value = conversations.value.slice(0, 20)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.value))
+  }
+}
+
+function saveCurrentConv() {
+  const now = Date.now()
+  const existing = conversations.value.find(c => c.id === activeId.value)
+  if (existing) {
+    existing.messages = [...messages.value]
+    existing.updatedAt = now
+    // Auto-title from first user message
+    if (existing.title === '新对话') {
+      const firstUser = messages.value.find(m => m.role === 'user')
+      if (firstUser) {
+        existing.title = firstUser.content.slice(0, 30) + (firstUser.content.length > 30 ? '...' : '')
+      }
+    }
+  } else if (messages.value.length > 1) {
+    conversations.value.push({
+      id: activeId.value,
+      title: '新对话',
+      messages: [...messages.value],
+      updatedAt: now,
+    })
+  }
+  saveConversations()
+}
+
+function newConversation() {
+  // Save current first
+  saveCurrentConv()
+  activeId.value = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+  localStorage.setItem(ACTIVE_KEY, activeId.value)
+  messages.value = [{ role: 'assistant', content: WELCOME }]
+  showConvList.value = false
+  error.value = ''
+}
+
+function switchConversation(id: string) {
+  saveCurrentConv()
+  const conv = conversations.value.find(c => c.id === id)
+  if (conv) {
+    activeId.value = id
+    messages.value = [...conv.messages]
+    localStorage.setItem(ACTIVE_KEY, activeId.value)
+  }
+  showConvList.value = false
+  error.value = ''
+  scrollToBottom()
+}
+
+function deleteConversation(id: string) {
+  conversations.value = conversations.value.filter(c => c.id !== id)
+  saveConversations()
+  if (id === activeId.value) {
+    if (conversations.value.length > 0) {
+      switchConversation(conversations.value[0].id)
+    } else {
+      newConversation()
+    }
+  }
+}
+
+// Sorted conversations for display (newest first)
+const sortedConvs = computed(() =>
+  [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt)
+)
+
+const activeConvTitle = computed(() => {
+  const conv = conversations.value.find(c => c.id === activeId.value)
+  return conv?.title || '新对话'
+})
+
+// ── Persistence ──
+function saveDebounced() {
+  saveCurrentConv()
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+watch(messages, () => {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(saveDebounced, 500)
+}, { deep: true })
+
+// ── Init ──
 onMounted(() => {
-  messages.value = [{
-    role: 'assistant',
-    content: '你好！我是 A 股 AI 分析助手。\n\n我可以帮你：\n- **技术分析**："分析贵州茅台的技术形态"\n- **股票筛选**："找 PE 小于 15 且 ROE 大于 20% 的股票"\n- **多股对比**："对比贵州茅台、五粮液和泸州老窖"\n- **市场全景**："今天市场怎么样"\n\n请先点击右上角 ⚙ 配置 AI Key，然后开始提问。',
-  }]
+  loadConversations()
+  const saved = localStorage.getItem(ACTIVE_KEY)
+  if (saved && conversations.value.find(c => c.id === saved)) {
+    activeId.value = saved
+    const conv = conversations.value.find(c => c.id === saved)!
+    messages.value = [...conv.messages]
+  } else if (conversations.value.length > 0) {
+    activeId.value = conversations.value[0].id
+    messages.value = [...conversations.value[0].messages]
+  } else {
+    activeId.value = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+    localStorage.setItem(ACTIVE_KEY, activeId.value)
+    messages.value = [{ role: 'assistant', content: WELCOME }]
+  }
+  // Trim oversized conversations on load
+  messages.value = messages.value.slice(-MAX_MSGS)
 })
 
 function scrollToBottom() {
@@ -82,6 +175,43 @@ function handleStockClick(event: MouseEvent) {
   }
 }
 
+// ── Context menu ──
+const ctxMenu = ref({ show: false, x: 0, y: 0, index: -1 })
+const ctxMenuRef = ref<HTMLDivElement>()
+
+function onContextMenu(event: MouseEvent, index: number) {
+  event.preventDefault()
+  ctxMenu.value = { show: true, x: event.clientX, y: event.clientY, index }
+  nextTick(() => {
+    if (ctxMenuRef.value) {
+      const r = ctxMenuRef.value.getBoundingClientRect()
+      if (r.right > window.innerWidth) ctxMenu.value.x -= r.width
+      if (r.bottom > window.innerHeight) ctxMenu.value.y -= r.height
+    }
+  })
+}
+
+function hideContextMenu() {
+  ctxMenu.value.show = false
+}
+
+async function copyMessage(index: number) {
+  const raw = messages.value[index]?.content || ''
+  try {
+    await navigator.clipboard.writeText(raw)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = raw
+    ta.style.position = 'fixed'; ta.style.left = '-9999px'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+  hideContextMenu()
+}
+
+// ── Send ──
 async function send() {
   const text = input.value.trim()
   if (!text || loading.value) return
@@ -91,15 +221,18 @@ async function send() {
   messages.value.push({ role: 'user', content: text })
   const placeholderIdx = messages.value.length
   messages.value.push({ role: 'assistant', content: '' })
+  // Trim old messages to prevent memory blowup
+  if (messages.value.length > MAX_MSGS) {
+    messages.value.splice(0, messages.value.length - MAX_MSGS)
+  }
   scrollToBottom()
 
   loading.value = true
   abortController = new AbortController()
   try {
-    const history: { role: string; content: string }[] = messages.value
-      .filter(m => m.content)
-      .slice(0, -1)
-      .map(m => ({ role: m.role, content: m.content }))
+    // Only send recent messages as context
+    const recent = messages.value.filter(m => m.content).slice(0, -1).slice(-24)
+    const history: { role: string; content: string }[] = recent.map(m => ({ role: m.role, content: m.content }))
 
     const resp = await api.agentChatStream(text, history, abortController.signal)
     if (!resp.ok) {
@@ -158,7 +291,6 @@ async function send() {
     scrollToBottom()
   } catch (e: unknown) {
     if (e instanceof DOMException && e.name === 'AbortError') {
-      // User clicked stop — trim any partial content
       if (!messages.value[placeholderIdx].content.trim()) {
         messages.value.splice(placeholderIdx, 1)
       }
@@ -187,7 +319,32 @@ watch(messages, () => scrollToBottom(), { deep: true })
 
 <template>
   <div class="agent-chat">
-    <div class="chat-body" ref="chatBody" @click="handleStockClick" @click.capture="hideContextMenu">
+    <!-- Header -->
+    <div class="chat-header">
+      <div class="conv-selector" ref="convDropdown">
+        <button class="conv-title-btn" @click="showConvList = !showConvList">
+          <span class="conv-title-text">{{ activeConvTitle }}</span>
+          <span class="conv-arrow" :class="{ open: showConvList }">▾</span>
+        </button>
+        <div v-if="showConvList" class="conv-dropdown" @click.stop>
+          <div class="conv-dropdown-header">历史对话</div>
+          <div
+            v-for="conv in sortedConvs" :key="conv.id"
+            :class="['conv-item', { active: conv.id === activeId }]"
+            @click="switchConversation(conv.id)"
+          >
+            <span class="conv-item-title">{{ conv.title }}</span>
+            <span class="conv-item-time">{{ new Date(conv.updatedAt).toLocaleDateString('zh-CN', { month:'short', day:'numeric' }) }}</span>
+            <button class="conv-del-btn" @click.stop="deleteConversation(conv.id)" title="删除">✕</button>
+          </div>
+          <div v-if="conversations.length === 0" class="conv-empty">暂无历史对话</div>
+        </div>
+      </div>
+      <button class="new-chat-btn" @click="newConversation">+ 新对话</button>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-body" ref="chatBody" @click="handleStockClick" @click.capture="hideContextMenu; showConvList = false">
       <div
         v-for="(msg, i) in messages"
         :key="i"
@@ -204,21 +361,9 @@ watch(messages, () => scrollToBottom(), { deep: true })
         </div>
       </div>
       <div v-if="error" class="chat-error">{{ error }}</div>
-      <!-- Context menu -->
-      <Teleport to="body">
-        <div
-          v-if="ctxMenu.show"
-          ref="ctxMenuRef"
-          class="ctx-menu"
-          :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
-          @click.stop
-        >
-          <button class="ctx-menu-item" @click="copyMessage(ctxMenu.index)">
-            <span class="ctx-icon">📋</span> 复制
-          </button>
-        </div>
-      </Teleport>
     </div>
+
+    <!-- Input -->
     <div class="chat-input-area">
       <input
         v-model="input"
@@ -231,6 +376,21 @@ watch(messages, () => scrollToBottom(), { deep: true })
       <button v-if="loading" class="chat-stop-btn" @click="stop">停止</button>
       <button v-else class="chat-send-btn" :disabled="!input.trim()" @click="send">发送</button>
     </div>
+
+    <!-- Context menu -->
+    <Teleport to="body">
+      <div
+        v-if="ctxMenu.show"
+        ref="ctxMenuRef"
+        class="ctx-menu"
+        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+        @click.stop
+      >
+        <button class="ctx-menu-item" @click="copyMessage(ctxMenu.index)">
+          <span class="ctx-icon">📋</span> 复制
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -240,6 +400,73 @@ watch(messages, () => scrollToBottom(), { deep: true })
   background: var(--bg-surface); border-radius: var(--radius);
   margin: 12px 24px; overflow: hidden; border: 1px solid var(--border);
 }
+
+/* Header */
+.chat-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  background: var(--bg-alt); gap: 8px; flex-shrink: 0;
+}
+.conv-selector { position: relative; flex: 1; min-width: 0; }
+.conv-title-btn {
+  display: flex; align-items: center; gap: 4px;
+  width: 100%; padding: 5px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg-surface);
+  color: var(--text-primary); font-size: 12px; font-weight: 500;
+  cursor: pointer; font-family: inherit; text-align: left;
+  transition: all var(--transition);
+}
+.conv-title-btn:hover { border-color: var(--accent); }
+.conv-title-text {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.conv-arrow { font-size: 10px; color: var(--text-muted); transition: transform var(--transition); }
+.conv-arrow.open { transform: rotate(180deg); }
+
+.conv-dropdown {
+  position: absolute; top: 100%; left: 0; right: 0;
+  margin-top: 4px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); background: var(--bg-surface);
+  box-shadow: 0 4px 16px var(--shadow-lg);
+  max-height: 260px; overflow-y: auto; z-index: 100;
+}
+.conv-dropdown-header {
+  padding: 8px 12px; font-size: 11px; color: var(--text-muted);
+  font-weight: 600; border-bottom: 1px solid var(--border);
+}
+.conv-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; cursor: pointer; transition: background var(--transition);
+}
+.conv-item:hover { background: var(--bg-hover); }
+.conv-item.active { background: var(--accent-light); }
+.conv-item-title {
+  flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-primary);
+}
+.conv-item-time {
+  font-size: 10px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0;
+}
+.conv-del-btn {
+  border: none; background: transparent; color: var(--text-muted);
+  font-size: 12px; cursor: pointer; padding: 2px 4px; border-radius: 3px;
+  flex-shrink: 0; line-height: 1; opacity: 0;
+  transition: all var(--transition);
+}
+.conv-item:hover .conv-del-btn { opacity: 1; }
+.conv-del-btn:hover { background: var(--red); color: white; }
+.conv-empty {
+  padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px;
+}
+.new-chat-btn {
+  padding: 5px 14px; border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  background: var(--accent-light); color: var(--accent); font-size: 12px; font-weight: 500;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0; font-family: inherit;
+  transition: all var(--transition);
+}
+.new-chat-btn:hover { background: var(--accent); color: white; }
+
+/* Body */
 .chat-body {
   flex: 1; overflow-y: auto; padding: 20px 24px;
   display: flex; flex-direction: column; gap: 16px;
@@ -289,6 +516,7 @@ watch(messages, () => scrollToBottom(), { deep: true })
   border-left: 3px solid var(--accent); padding-left: 12px;
   color: var(--text-secondary); margin: 8px 0;
 }
+
 .chat-loading { padding: 8px 0; }
 .dot {
   display: inline-block; font-size: 24px; line-height: 12px;
@@ -300,10 +528,13 @@ watch(messages, () => scrollToBottom(), { deep: true })
   0%, 80%, 100% { opacity: 0.2; }
   40% { opacity: 1; }
 }
+
 .chat-error {
   padding: 8px 16px; background: rgba(239,68,68,0.1); border: 1px solid var(--red);
   border-radius: var(--radius-sm); color: var(--red); font-size: 12px;
 }
+
+/* Input */
 .chat-input-area {
   display: flex; gap: 8px; padding: 12px 16px;
   border-top: 1px solid var(--border); background: var(--bg-alt);
@@ -331,6 +562,7 @@ watch(messages, () => scrollToBottom(), { deep: true })
   cursor: pointer; white-space: nowrap; transition: all var(--transition);
 }
 .chat-stop-btn:hover { background: #dc2626; box-shadow: 0 4px 12px rgba(239,68,68,0.3); }
+
 .tool-status {
   padding: 6px 16px; font-size: 12px; color: var(--accent);
   background: var(--accent-light); border-radius: var(--radius-sm);
