@@ -20,8 +20,8 @@ npm run dev                  # 界面运行在 http://localhost:5173
 ```
 
 ## 技术栈
-- 后端：Python 3.11+, FastAPI, SQLAlchemy, pandas, akshare (K线), 新浪财经 API (选股指标)
-- 前端：Vue 3 (Composition API), TypeScript, Vite
+- 后端：Python 3.11+, FastAPI, SQLAlchemy, pandas, akshare (K线), 新浪财经 API (选股指标/实时行情), OpenAI 兼容 LLM API
+- 前端：Vue 3 (Composition API), TypeScript, Vite, markdown-it
 - 数据库：SQLite
 
 ## 功能
@@ -58,10 +58,13 @@ npm run dev                  # 界面运行在 http://localhost:5173
 - 跌停板统计
 - 点击股票弹出详情
 
-### 其他
-- 一键刷新数据（从新浪财经拉取全量数据）
-- 明暗主题切换
-- 响应式布局
-
-## 待完成任务
-- 接入 Agent 智能选股
+### AI 智能选股
+- 自然语言驱动的股票分析：输入"分析贵州茅台"即可获得完整技术分析报告
+- 多周期技术指标：日/周/月K 的 MA、MACD、RSI、KDJ、布林带，数据实时取自新浪财经
+- 股票筛选：用自然语言描述条件（如"找 PE<15、ROE>20%、MACD 金叉的股票"）
+- 多股对比：同时分析多只股票并排对比
+- 市场全景：涨停/跌停统计、板块排名
+- SSE 流式输出，支持中途停止
+- 对话记忆系统：多对话管理、摘要压缩、上下文保持
+- 支持 OpenAI 兼容 API（可自行配置 Key、URL、模型）
+- Markdown 渲染（表格、列表、加粗等）
