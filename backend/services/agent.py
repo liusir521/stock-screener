@@ -211,11 +211,10 @@ def _exec_analyze_stock(args: dict) -> dict:
     periods = args.get("periods", ["daily", "weekly", "monthly"])
     from database import engine
     import pandas as pd
-    from services.data_fetcher import fetch_kline_sina, fetch_intraday_sina, fetch_corp_info
+    from services.data_fetcher import fetch_kline_sina, fetch_intraday_sina, fetch_corp_info, fetch_single_snapshot
 
-    # ── Load basic info + latest daily from DB ──
+    # ── Load basic info from DB ──
     basic = {}
-    latest: dict = {}
     try:
         with engine.connect() as conn:
             row = conn.execute(
@@ -227,17 +226,11 @@ def _exec_analyze_stock(args: dict) -> dict:
         corp = fetch_corp_info(code)
         if corp.get("industry"):
             basic["industry"] = corp["industry"]
-        with engine.connect() as conn:
-            row2 = conn.execute(
-                __import__("sqlalchemy").text(
-                    "SELECT close, pe_ttm, pb, roe, market_cap, turnover_rate, change_pct, volume_ratio, dividend_yield FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 1"
-                ),
-                {"code": code},
-            ).fetchone()
-        if row2:
-            latest = dict(row2._mapping)
     except Exception:
         pass
+
+    # ── Fetch live fundamentals from Sina (not DB cache) ──
+    snapshot = fetch_single_snapshot(code)
 
     # ── Fetch daily OHLCV via Sina K-line API ──
     df = fetch_kline_sina(code, days=250)
@@ -370,11 +363,18 @@ def _exec_analyze_stock(args: dict) -> dict:
     except Exception:
         pass
 
-    # Use the freshest close from K-line, fall back to DB
-    kline_close = float(df["close"].iloc[-1]) if len(df) > 0 else None
-    latest_out = {k: v for k, v in latest.items() if v is not None and k != "code"}
-    if kline_close is not None:
-        latest_out["close"] = kline_close
+    # Build live fundamentals from Sina snapshot + K-line
+    latest_out = {
+        "close": snapshot.get("close") or (float(df["close"].iloc[-1]) if len(df) > 0 else 0),
+        "pe_ttm": snapshot.get("pe_ttm"),
+        "pb": snapshot.get("pb"),
+        "roe": snapshot.get("roe"),
+        "market_cap": snapshot.get("market_cap"),
+        "turnover_rate": snapshot.get("turnover_rate"),
+        "change_pct": snapshot.get("change_pct"),
+    }
+    # Remove None values
+    latest_out = {k: v for k, v in latest_out.items() if v is not None}
 
     return {
         "code": code, "name": basic.get("name", ""),
@@ -383,6 +383,7 @@ def _exec_analyze_stock(args: dict) -> dict:
         "intraday": intraday_info,
         "periods": period_analysis,
         "data_date": str(df.index[-1].date()) if len(df) > 0 else "",
+        "data_source": "sina_live",
     }
 
 

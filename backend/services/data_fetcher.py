@@ -138,6 +138,86 @@ def _sina_symbol(code: str) -> str:
     return "sz" + code
 
 
+def fetch_single_snapshot(code: str) -> dict:
+    """Fetch live fundamentals for a single stock from Sina API.
+    Jumps to estimated page then walks forward/backward — ~2-4 API calls typical.
+    Returns dict with price, change_pct, pe, pb, market_cap, turnover_rate, etc.
+    """
+    symbol = _sina_symbol(code)
+
+    # Page estimation based on probed boundaries
+    if symbol.startswith("bj"):
+        start = 1
+    elif symbol.startswith("sh600"):
+        start = 4
+    elif symbol.startswith("sh601"):
+        start = 11
+    elif symbol.startswith("sh603"):
+        start = 14
+    elif symbol.startswith("sh605"):
+        start = 19
+    elif symbol.startswith("sh688"):
+        start = 22
+    elif symbol.startswith("sz000"):
+        start = 29
+    elif symbol.startswith("sz001"):
+        start = 33
+    elif symbol.startswith("sz002"):
+        start = 36
+    elif symbol.startswith("sz300"):
+        start = 43
+    elif symbol.startswith("sz301"):
+        start = 52
+    else:
+        start = 1
+
+    def _snap(row: dict) -> dict:
+        trade = float(row.get("trade", 0) or 0)
+        per = float(row.get("per", 0) or 0)
+        pb_val = float(row.get("pb", 0) or 0)
+        mktcap = float(row.get("mktcap", 0) or 0) / 1e4
+        roe_val = (pb_val / per * 100) if (per > 0 and pb_val > 0) else 0.0
+        return {
+            "close": round(trade, 2),
+            "pe_ttm": round(per, 2),
+            "pb": round(pb_val, 2),
+            "roe": round(roe_val, 2),
+            "market_cap": round(mktcap, 2),
+            "turnover_rate": round(float(row.get("turnoverratio", 0) or 0), 2),
+            "change_pct": round(float(row.get("changepercent", 0) or 0), 2),
+            "volume": float(row.get("volume", 0) or 0),
+        }
+
+    def _scan(p: int) -> tuple[dict | None, str, str]:
+        """Fetch page p, return (result_or_None, first_symbol, last_symbol)."""
+        try:
+            rows = _fetch_sina_page(p, 100)
+        except Exception:
+            return (None, "", "")
+        if not rows:
+            return (None, "", "")
+        for row in rows:
+            if str(row.get("code", "")) == code:
+                return (_snap(row), "", "")
+        return (None, str(rows[0].get("symbol", "")), str(rows[-1].get("symbol", "")))
+
+    result, first_sym, last_sym = _scan(start)
+    if result:
+        return result
+
+    if first_sym and symbol < first_sym:
+        for p in range(start - 1, 0, -1):
+            result, _, _ = _scan(p)
+            if result:
+                return result
+    elif last_sym and symbol > last_sym:
+        for p in range(start + 1, start + 25):
+            result, _, _ = _scan(p)
+            if result:
+                return result
+    return {}
+
+
 def fetch_kline_sina(code: str, days: int = 60) -> pd.DataFrame:
     """Fetch daily K-line data for a single stock from Sina finance API.
     Returns DataFrame with OHLCV columns.
