@@ -30,8 +30,7 @@ let abortController: AbortController | null = null
 // ── Conversation management ──
 const conversations = ref<Conversation[]>([])
 const activeId = ref('')
-const showConvList = ref(false)
-const convDropdown = ref<HTMLDivElement>()
+const showSidebar = ref(true)
 
 function loadConversations() {
   try {
@@ -46,7 +45,6 @@ function saveConversations() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.value))
   } catch {
-    // localStorage full — trim oldest conversations
     conversations.value.sort((a, b) => b.updatedAt - a.updatedAt)
     conversations.value = conversations.value.slice(0, 20)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.value))
@@ -59,7 +57,6 @@ function saveCurrentConv() {
   if (existing) {
     existing.messages = [...messages.value]
     existing.updatedAt = now
-    // Auto-title from first user message
     if (existing.title === '新对话') {
       const firstUser = messages.value.find(m => m.role === 'user')
       if (firstUser) {
@@ -78,12 +75,10 @@ function saveCurrentConv() {
 }
 
 function newConversation() {
-  // Save current first
   saveCurrentConv()
   activeId.value = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
   localStorage.setItem(ACTIVE_KEY, activeId.value)
   messages.value = [{ role: 'assistant', content: WELCOME }]
-  showConvList.value = false
   error.value = ''
 }
 
@@ -95,7 +90,6 @@ function switchConversation(id: string) {
     messages.value = [...conv.messages]
     localStorage.setItem(ACTIVE_KEY, activeId.value)
   }
-  showConvList.value = false
   error.value = ''
   scrollToBottom()
 }
@@ -112,15 +106,9 @@ function deleteConversation(id: string) {
   }
 }
 
-// Sorted conversations for display (newest first)
 const sortedConvs = computed(() =>
   [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt)
 )
-
-const activeConvTitle = computed(() => {
-  const conv = conversations.value.find(c => c.id === activeId.value)
-  return conv?.title || '新对话'
-})
 
 // ── Persistence ──
 function saveDebounced() {
@@ -149,7 +137,6 @@ onMounted(() => {
     localStorage.setItem(ACTIVE_KEY, activeId.value)
     messages.value = [{ role: 'assistant', content: WELCOME }]
   }
-  // Trim oversized conversations on load
   messages.value = messages.value.slice(-MAX_MSGS)
 })
 
@@ -221,7 +208,6 @@ async function send() {
   messages.value.push({ role: 'user', content: text })
   const placeholderIdx = messages.value.length
   messages.value.push({ role: 'assistant', content: '' })
-  // Trim old messages to prevent memory blowup
   if (messages.value.length > MAX_MSGS) {
     messages.value.splice(0, messages.value.length - MAX_MSGS)
   }
@@ -230,7 +216,6 @@ async function send() {
   loading.value = true
   abortController = new AbortController()
   try {
-    // Only send recent messages as context
     const recent = messages.value.filter(m => m.content).slice(0, -1).slice(-24)
     const history: { role: string; content: string }[] = recent.map(m => ({ role: m.role, content: m.content }))
 
@@ -319,62 +304,69 @@ watch(messages, () => scrollToBottom(), { deep: true })
 
 <template>
   <div class="agent-chat">
-    <!-- Header -->
-    <div class="chat-header">
-      <div class="conv-selector" ref="convDropdown">
-        <button class="conv-title-btn" @click="showConvList = !showConvList">
-          <span class="conv-title-text">{{ activeConvTitle }}</span>
-          <span class="conv-arrow" :class="{ open: showConvList }">▾</span>
-        </button>
-        <div v-if="showConvList" class="conv-dropdown" @click.stop>
-          <div class="conv-dropdown-header">历史对话</div>
-          <div
-            v-for="conv in sortedConvs" :key="conv.id"
-            :class="['conv-item', { active: conv.id === activeId }]"
-            @click="switchConversation(conv.id)"
-          >
-            <span class="conv-item-title">{{ conv.title }}</span>
-            <span class="conv-item-time">{{ new Date(conv.updatedAt).toLocaleDateString('zh-CN', { month:'short', day:'numeric' }) }}</span>
-            <button class="conv-del-btn" @click.stop="deleteConversation(conv.id)" title="删除">✕</button>
-          </div>
-          <div v-if="conversations.length === 0" class="conv-empty">暂无历史对话</div>
-        </div>
+    <!-- Sidebar -->
+    <div class="chat-sidebar" :class="{ collapsed: !showSidebar }">
+      <div class="sidebar-header">
+        <span class="sidebar-title">对话列表</span>
+        <button class="sidebar-toggle" @click="showSidebar = !showSidebar" title="收起侧栏">◀</button>
       </div>
       <button class="new-chat-btn" @click="newConversation">+ 新对话</button>
+      <div class="conv-list">
+        <div
+          v-for="conv in sortedConvs" :key="conv.id"
+          :class="['conv-item', { active: conv.id === activeId }]"
+          @click="switchConversation(conv.id)"
+        >
+          <div class="conv-item-main">
+            <span class="conv-item-title">{{ conv.title }}</span>
+            <span class="conv-item-time">{{ new Date(conv.updatedAt).toLocaleDateString('zh-CN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) }}</span>
+          </div>
+          <button class="conv-del-btn" @click.stop="deleteConversation(conv.id)" title="删除">✕</button>
+        </div>
+        <div v-if="conversations.length === 0" class="conv-empty">暂无历史对话</div>
+      </div>
     </div>
 
-    <!-- Messages -->
-    <div class="chat-body" ref="chatBody" @click="handleStockClick" @click.capture="hideContextMenu; showConvList = false">
-      <div
-        v-for="(msg, i) in messages"
-        :key="i"
-        :class="['chat-message', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
-      >
-        <div class="chat-bubble" @contextmenu="onContextMenu($event, i)" v-if="msg.content">
-          <div v-if="msg.role === 'assistant'" class="chat-content" v-html="renderMarkdown(msg.content)"></div>
-          <div v-else class="chat-content">{{ msg.content }}</div>
-        </div>
-        <div v-else class="chat-bubble">
-          <div class="chat-loading">
-            <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+    <!-- Collapsed toggle -->
+    <div v-if="!showSidebar" class="sidebar-collapsed-toggle" @click="showSidebar = true" title="展开侧栏">
+      <span>▶</span>
+    </div>
+
+    <!-- Main chat area -->
+    <div class="chat-main">
+      <!-- Messages -->
+      <div class="chat-body" ref="chatBody" @click="handleStockClick" @click.capture="hideContextMenu">
+        <div
+          v-for="(msg, i) in messages"
+          :key="i"
+          :class="['chat-message', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
+        >
+          <div class="chat-bubble" @contextmenu="onContextMenu($event, i)" v-if="msg.content">
+            <div v-if="msg.role === 'assistant'" class="chat-content" v-html="renderMarkdown(msg.content)"></div>
+            <div v-else class="chat-content">{{ msg.content }}</div>
+          </div>
+          <div v-else class="chat-bubble">
+            <div class="chat-loading">
+              <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+            </div>
           </div>
         </div>
+        <div v-if="error" class="chat-error">{{ error }}</div>
       </div>
-      <div v-if="error" class="chat-error">{{ error }}</div>
-    </div>
 
-    <!-- Input -->
-    <div class="chat-input-area">
-      <input
-        v-model="input"
-        type="text"
-        placeholder="输入问题，如'分析一下贵州茅台'..."
-        class="chat-input"
-        :disabled="loading"
-        @keydown.enter.prevent="send"
-      />
-      <button v-if="loading" class="chat-stop-btn" @click="stop">停止</button>
-      <button v-else class="chat-send-btn" :disabled="!input.trim()" @click="send">发送</button>
+      <!-- Input -->
+      <div class="chat-input-area">
+        <input
+          v-model="input"
+          type="text"
+          placeholder="输入问题，如'分析一下贵州茅台'..."
+          class="chat-input"
+          :disabled="loading"
+          @keydown.enter.prevent="send"
+        />
+        <button v-if="loading" class="chat-stop-btn" @click="stop">停止</button>
+        <button v-else class="chat-send-btn" :disabled="!input.trim()" @click="send">发送</button>
+      </div>
     </div>
 
     <!-- Context menu -->
@@ -396,60 +388,81 @@ watch(messages, () => scrollToBottom(), { deep: true })
 
 <style scoped>
 .agent-chat {
-  display: flex; flex-direction: column; height: calc(100vh - 140px);
+  display: flex; height: calc(100vh - 140px);
   background: var(--bg-surface); border-radius: var(--radius);
   margin: 12px 24px; overflow: hidden; border: 1px solid var(--border);
 }
 
-/* Header */
-.chat-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px; border-bottom: 1px solid var(--border);
-  background: var(--bg-alt); gap: 8px; flex-shrink: 0;
+/* ── Sidebar ── */
+.chat-sidebar {
+  display: flex; flex-direction: column;
+  width: 220px; flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-alt);
+  transition: width 0.2s ease;
 }
-.conv-selector { position: relative; flex: 1; min-width: 0; }
-.conv-title-btn {
-  display: flex; align-items: center; gap: 4px;
-  width: 100%; padding: 5px 10px; border: 1px solid var(--border);
-  border-radius: var(--radius-sm); background: var(--bg-surface);
-  color: var(--text-primary); font-size: 12px; font-weight: 500;
-  cursor: pointer; font-family: inherit; text-align: left;
+.chat-sidebar.collapsed {
+  width: 0; overflow: hidden; border-right: none;
+}
+.sidebar-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+}
+.sidebar-title {
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  white-space: nowrap;
+}
+.sidebar-toggle {
+  border: none; background: transparent; color: var(--text-muted);
+  font-size: 10px; cursor: pointer; padding: 2px 4px; border-radius: 3px;
   transition: all var(--transition);
 }
-.conv-title-btn:hover { border-color: var(--accent); }
-.conv-title-text {
-  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.conv-arrow { font-size: 10px; color: var(--text-muted); transition: transform var(--transition); }
-.conv-arrow.open { transform: rotate(180deg); }
+.sidebar-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-.conv-dropdown {
-  position: absolute; top: 100%; left: 0; right: 0;
-  margin-top: 4px; border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm); background: var(--bg-surface);
-  box-shadow: 0 4px 16px var(--shadow-lg);
-  max-height: 260px; overflow-y: auto; z-index: 100;
+.sidebar-collapsed-toggle {
+  flex-shrink: 0; width: 24px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-alt); border-right: 1px solid var(--border);
+  cursor: pointer; color: var(--text-muted); font-size: 10px;
+  transition: all var(--transition);
 }
-.conv-dropdown-header {
-  padding: 8px 12px; font-size: 11px; color: var(--text-muted);
-  font-weight: 600; border-bottom: 1px solid var(--border);
+.sidebar-collapsed-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.new-chat-btn {
+  margin: 8px; padding: 6px 0;
+  border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  background: var(--accent-light); color: var(--accent);
+  font-size: 12px; font-weight: 500;
+  cursor: pointer; font-family: inherit; flex-shrink: 0;
+  transition: all var(--transition);
+}
+.new-chat-btn:hover { background: var(--accent); color: white; }
+
+.conv-list {
+  flex: 1; overflow-y: auto; padding: 0 4px 8px;
 }
 .conv-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 12px; cursor: pointer; transition: background var(--transition);
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 10px; margin: 2px 4px;
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: background var(--transition);
 }
 .conv-item:hover { background: var(--bg-hover); }
 .conv-item.active { background: var(--accent-light); }
+.conv-item-main {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+}
 .conv-item-title {
-  flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--text-primary);
 }
+.conv-item.active .conv-item-title { color: var(--accent); font-weight: 600; }
 .conv-item-time {
-  font-size: 10px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0;
+  font-size: 10px; color: var(--text-muted); white-space: nowrap;
 }
 .conv-del-btn {
   border: none; background: transparent; color: var(--text-muted);
-  font-size: 12px; cursor: pointer; padding: 2px 4px; border-radius: 3px;
+  font-size: 11px; cursor: pointer; padding: 2px 4px; border-radius: 3px;
   flex-shrink: 0; line-height: 1; opacity: 0;
   transition: all var(--transition);
 }
@@ -458,13 +471,11 @@ watch(messages, () => scrollToBottom(), { deep: true })
 .conv-empty {
   padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px;
 }
-.new-chat-btn {
-  padding: 5px 14px; border: 1px solid var(--accent); border-radius: var(--radius-sm);
-  background: var(--accent-light); color: var(--accent); font-size: 12px; font-weight: 500;
-  cursor: pointer; white-space: nowrap; flex-shrink: 0; font-family: inherit;
-  transition: all var(--transition);
+
+/* ── Main chat area ── */
+.chat-main {
+  flex: 1; display: flex; flex-direction: column; min-width: 0;
 }
-.new-chat-btn:hover { background: var(--accent); color: white; }
 
 /* Body */
 .chat-body {
