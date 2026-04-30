@@ -13,11 +13,13 @@ interface Conversation {
   title: string
   messages: { role: string; content: string }[]
   updatedAt: number
+  summary: string
 }
 
 const STORAGE_KEY = 'agent_conversations'
 const ACTIVE_KEY = 'agent_active_conv'
 const MAX_MSGS = 60
+const CTX_WINDOW = 5
 const WELCOME = '你好！我是 A 股 AI 分析助手。\n\n我可以帮你：\n- **技术分析**："分析贵州茅台的技术形态"\n- **股票筛选**："找 PE 小于 15 且 ROE 大于 20% 的股票"\n- **多股对比**："对比贵州茅台、五粮液和泸州老窖"\n- **市场全景**："今天市场怎么样"\n\n请先点击右上角 ⚙ 配置 AI Key，然后开始提问。'
 
 const messages = ref<{ role: string; content: string }[]>([])
@@ -30,6 +32,7 @@ let abortController: AbortController | null = null
 // ── Conversation management ──
 const conversations = ref<Conversation[]>([])
 const activeId = ref('')
+const currentSummary = ref('')
 const showSidebar = ref(true)
 
 function loadConversations() {
@@ -57,6 +60,7 @@ function saveCurrentConv() {
   if (existing) {
     existing.messages = [...messages.value]
     existing.updatedAt = now
+    existing.summary = currentSummary.value
     if (existing.title === '新对话') {
       const firstUser = messages.value.find(m => m.role === 'user')
       if (firstUser) {
@@ -69,6 +73,7 @@ function saveCurrentConv() {
       title: '新对话',
       messages: [...messages.value],
       updatedAt: now,
+      summary: currentSummary.value,
     })
   }
   saveConversations()
@@ -79,6 +84,7 @@ function newConversation() {
   activeId.value = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
   localStorage.setItem(ACTIVE_KEY, activeId.value)
   messages.value = [{ role: 'assistant', content: WELCOME }]
+  currentSummary.value = ''
   error.value = ''
 }
 
@@ -88,6 +94,7 @@ function switchConversation(id: string) {
   if (conv) {
     activeId.value = id
     messages.value = [...conv.messages]
+    currentSummary.value = conv.summary || ''
     localStorage.setItem(ACTIVE_KEY, activeId.value)
   }
   error.value = ''
@@ -129,13 +136,16 @@ onMounted(() => {
     activeId.value = saved
     const conv = conversations.value.find(c => c.id === saved)!
     messages.value = [...conv.messages]
+    currentSummary.value = conv.summary || ''
   } else if (conversations.value.length > 0) {
     activeId.value = conversations.value[0].id
     messages.value = [...conversations.value[0].messages]
+    currentSummary.value = conversations.value[0].summary || ''
   } else {
     activeId.value = Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
     localStorage.setItem(ACTIVE_KEY, activeId.value)
     messages.value = [{ role: 'assistant', content: WELCOME }]
+    currentSummary.value = ''
   }
   messages.value = messages.value.slice(-MAX_MSGS)
 })
@@ -198,6 +208,62 @@ async function copyMessage(index: number) {
   hideContextMenu()
 }
 
+// ── Summary ──
+let summarizing = false
+
+async function triggerSummarize() {
+  if (summarizing) return
+  const msgs = messages.value.filter(m => m.content)
+  if (msgs.length <= CTX_WINDOW) return
+
+  const toSummarize = msgs.slice(0, -CTX_WINDOW)
+  if (toSummarize.length < 2) return
+
+  summarizing = true
+  try {
+    const lines = toSummarize.map(m => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content.slice(0, 200)}`)
+    const prompt = `请将以下对话压缩为一段100字以内的中文摘要，只保留关键信息（股票代码、指标数值、分析结论等）：\n${lines.join('\n')}`
+    const history: { role: string; content: string }[] = [{ role: 'user', content: prompt }]
+
+    const resp = await api.agentChatStream(prompt, history)
+    if (!resp.ok) return
+    const reader = resp.body!.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    let summary = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const parts = buf.split('\n\n')
+      buf = parts.pop() || ''
+      for (const part of parts) {
+        if (!part.trim()) continue
+        const lines = part.split('\n')
+        let data = ''
+        for (const line of lines) {
+          if (line.startsWith('data: ')) data = line.slice(6)
+        }
+        if (data) {
+          try { summary += JSON.parse(data) } catch {}
+        }
+      }
+    }
+    if (summary.trim()) {
+      // Merge with existing summary
+      currentSummary.value = currentSummary.value
+        ? `${currentSummary.value}; ${summary.trim()}`
+        : summary.trim()
+      saveCurrentConv()
+    }
+  } catch {
+    // Silently fail — summarization is not critical
+  } finally {
+    summarizing = false
+  }
+}
+
 // ── Send ──
 async function send() {
   const text = input.value.trim()
@@ -216,8 +282,11 @@ async function send() {
   loading.value = true
   abortController = new AbortController()
   try {
-    const recent = messages.value.filter(m => m.content).slice(0, -1).slice(-24)
+    const recent = messages.value.filter(m => m.content).slice(0, -1).slice(-CTX_WINDOW)
     const history: { role: string; content: string }[] = recent.map(m => ({ role: m.role, content: m.content }))
+    if (currentSummary.value) {
+      history.unshift({ role: 'user', content: `[前序对话摘要] ${currentSummary.value}` })
+    }
 
     const resp = await api.agentChatStream(text, history, abortController.signal)
     if (!resp.ok) {
@@ -289,6 +358,7 @@ async function send() {
   } finally {
     loading.value = false
     abortController = null
+    triggerSummarize()
   }
 }
 
