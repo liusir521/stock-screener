@@ -233,7 +233,7 @@ def _exec_analyze_stock(args: dict) -> dict:
     snapshot = fetch_single_snapshot(code)
 
     # ── Fetch daily OHLCV via Sina K-line API ──
-    df = fetch_kline_sina(code, days=250)
+    df = fetch_kline_sina(code, days=1500)
     if df.empty or len(df) < 20:
         return {
             "code": code, "name": basic.get("name", ""),
@@ -336,7 +336,7 @@ def _exec_analyze_stock(args: dict) -> dict:
     if "monthly" in periods:
         monthly = df.resample("ME").agg({
             "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"
-        }).dropna().tail(24)
+        }).dropna().tail(60)
         ma = _analyze(monthly)
         if ma:
             period_analysis["monthly"] = ma
