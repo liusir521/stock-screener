@@ -74,7 +74,7 @@ def stock_detail(code: str):
             kline_df = pd.read_sql_query(query, conn, params={"code": code})
     # Filter out rows with zero/negative close (suspended days)
     kline_df = kline_df[kline_df["close"] > 0] if not kline_df.empty else kline_df
-    daily_data = kline_df.where(kline_df.notna(), None).to_dict(orient="records") if not kline_df.empty else []
+    daily_data = kline_df.astype(object).where(kline_df.notna(), None).to_dict(orient="records") if not kline_df.empty else []
 
     # Enrich latest row with snapshot fundamentals (PE/PB/ROE/market_cap/turnover) for suspended stocks
     if daily_data and daily_data[-1].get("pe_ttm") is None:
@@ -108,7 +108,7 @@ def stock_intraday(code: str):
         first_date = str(bars_df.iloc[0]["date"])
         today_str = date.today().strftime("%Y-%m-%d")
         if today_str in first_date:
-            bars = bars_df.where(bars_df.notna(), None).to_dict(orient="records")
+            bars = bars_df.astype(object).where(bars_df.notna(), None).to_dict(orient="records")
 
     # Get prev_close and float_shares from stock_daily, compute turnover_rate
     prev_close = None
@@ -147,7 +147,7 @@ def stock_intraday(code: str):
 def stock_kline(code: str, period: str = Query("daily", pattern="^(daily|weekly|monthly)$")):
     from services.data_fetcher import fetch_stock_history_period
     df = fetch_stock_history_period(code, period)
-    kline_data = df.where(df.notna(), None).to_dict(orient="records") if not df.empty else []
+    kline_data = df.astype(object).where(df.notna(), None).to_dict(orient="records") if not df.empty else []
     return {"kline": kline_data, "period": period}
 
 

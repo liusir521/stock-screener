@@ -454,7 +454,7 @@ def _exec_search_stocks(args: dict) -> dict:
     cols = ["code", "name", "close", "change_pct", "pe_ttm", "pb", "roe",
             "market_cap", "turnover_rate", "volume_ratio", "industry"]
     available = [c for c in cols if c in top20.columns]
-    stocks = top20[available].where(top20.notna(), None).to_dict(orient="records")
+    stocks = top20[available].astype(object).where(top20.notna(), None).to_dict(orient="records")
     return {"total": total, "shown": len(stocks), "stocks": stocks}
 
 

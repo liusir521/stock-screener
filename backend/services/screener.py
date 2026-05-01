@@ -149,5 +149,6 @@ def paginate(df: pd.DataFrame, page: int, page_size: int) -> tuple[list[dict], i
     start = (page - 1) * page_size
     end = start + page_size
     page_df = df.iloc[start:end]
-    items = page_df.where(page_df.notna(), None).to_dict(orient="records")
+    # Convert to object dtype so None stays None (float64 converts None back to NaN)
+    items = page_df.astype(object).where(page_df.notna(), None).to_dict(orient="records")
     return items, total

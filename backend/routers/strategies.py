@@ -172,7 +172,7 @@ def strategy_intersection(names: str = ""):
     df = df[df["code"].isin(common_codes)]
     cols = ["code", "name", "close", "change_pct", "pe_ttm", "pb", "roe", "market_cap", "turnover_rate", "volume_ratio"]
     available = [c for c in cols if c in df.columns]
-    stocks = df[available].where(df.notna(), None).to_dict(orient="records")
+    stocks = df[available].astype(object).where(df.notna(), None).to_dict(orient="records")
     stocks.sort(key=lambda x: float(x.get("change_pct") or 0), reverse=True)
 
     return {"stocks": stocks, "strategies": target_names, "count": len(stocks)}

@@ -866,7 +866,7 @@ def fetch_stock_news(code: str, limit: int = 15) -> list[dict]:
         df = ak.stock_news_em(symbol=code)
         if df is None or df.empty:
             return []
-        return df.head(limit).where(df.notna(), None).to_dict(orient="records")
+        return df.head(limit).astype(object).where(df.notna(), None).to_dict(orient="records")
     except Exception:
         return []
 
@@ -878,6 +878,6 @@ def fetch_stock_notices(code: str, limit: int = 10) -> list[dict]:
         df = ak.stock_individual_notice_report(security=code)
         if df is None or df.empty:
             return []
-        return df.head(limit).where(df.notna(), None).to_dict(orient="records")
+        return df.head(limit).astype(object).where(df.notna(), None).to_dict(orient="records")
     except Exception:
         return []
