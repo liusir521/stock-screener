@@ -115,9 +115,15 @@ def seed() -> dict:
                     c = fut[f]
                     try:
                         info = f.result()
+                        updates = {}
                         ind = info.get("industry", "")
+                        ld = info.get("list_date", "")
                         if ind:
-                            session.query(StockBasic).filter(StockBasic.code == c).update({"industry": ind})
+                            updates["industry"] = ind
+                        if ld:
+                            updates["list_date"] = ld
+                        if updates:
+                            session.query(StockBasic).filter(StockBasic.code == c).update(updates)
                             updated_ind += 1
                     except Exception:
                         pass
