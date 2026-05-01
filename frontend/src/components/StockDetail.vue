@@ -442,6 +442,11 @@ function renderIntradayChart() {
     }
   }))
 
+  // Fit to full padded range after all series render
+  requestAnimationFrame(() => {
+    intradayChart!.timeScale().fitContent()
+  })
+
   // Crosshair tooltip
   const tooltipEl = document.createElement('div')
   Object.assign(tooltipEl.style, {
