@@ -11,10 +11,15 @@ import AgentChat from './components/AgentChat.vue'
 import { api } from './api'
 import { useWatchlist } from './composables/useWatchlist'
 
-const activeTab = ref<'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies'>(
-  (sessionStorage.getItem('activeTab') as 'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies') || 'stocks'
+const activeTab = ref<'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites'>(
+  (sessionStorage.getItem('activeTab') as 'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites') || 'stocks'
 )
-watch(activeTab, (val) => sessionStorage.setItem('activeTab', val))
+watch(activeTab, (val) => {
+  sessionStorage.setItem('activeTab', val)
+  if (val === 'favorites') {
+    watchlistOnly.value = true
+  }
+})
 const isDark = ref(false)
 
 function toggleTheme() {
@@ -34,7 +39,10 @@ onMounted(() => {
 const sidebarRef = ref<InstanceType<typeof Sidebar>>()
 const watchlist = useWatchlist()
 const watchlistOnly = ref(false)
-watch(watchlistOnly, () => {
+watch(watchlistOnly, (val) => {
+  if (!val && activeTab.value === 'favorites') {
+    activeTab.value = 'stocks'
+  }
   const filters = { ...currentFilters.value }
   delete filters.page
   delete filters.page_size
@@ -190,13 +198,13 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
       </div>
       <div class="tab-bar">
         <button
-          v-for="t in (['agent', 'stocks', 'strategies', 'sectors', 'limit'] as const)"
+          v-for="t in (['agent', 'stocks', 'favorites', 'strategies', 'sectors', 'limit'] as const)"
           :key="t"
           :class="['tab-btn', { active: activeTab === t }]"
           @click="activeTab = t"
-        >{{ { agent: 'AI 选股', stocks: '股票筛选', strategies: '策略', sectors: '板块排名', limit: '涨跌停板' }[t] }}</button>
+        >{{ { agent: 'AI 选股', stocks: '股票筛选', favorites: '自选', strategies: '策略', sectors: '板块排名', limit: '涨跌停板' }[t] }}</button>
       </div>
-      <div v-if="activeTab === 'stocks'" class="strategy-chips">
+      <div v-if="activeTab === 'stocks' || activeTab === 'favorites'" class="strategy-chips">
         <span class="strategy-chips-label">快捷策略:</span>
         <button
           v-for="s in quickStrategies" :key="s.name"
@@ -206,7 +214,7 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
         <button class="strategy-chip reset-chip" @click="handleReset">重置</button>
       </div>
       <AgentChat v-if="activeTab === 'agent'" @select-stock="handleStockSelect" />
-      <StockTable v-if="activeTab === 'stocks'"
+      <StockTable v-if="activeTab === 'stocks' || activeTab === 'favorites'"
         :items="displayItems" :total="total" :loading="loading"
         :current-page="currentPage" :sort-by="sortBy" :sort-order="sortOrder"
         :favorites="watchlist.codes.value"
