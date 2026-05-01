@@ -370,18 +370,6 @@ function renderIntradayChart() {
     if (a.href && a.href.includes('tradingview')) a.remove()
   })
 
-  // Compute average price: cumulative (vol * price) / cumulative vol
-  const avgPrices: number[] = []
-  let cumVolPrice = 0, cumVol = 0
-  for (const b of bars) {
-    const c = Number(b.close), v = Number(b.volume)
-    if (c && v) {
-      cumVolPrice += c * v
-      cumVol += v
-    }
-    avgPrices.push(cumVol > 0 ? cumVolPrice / cumVol : c)
-  }
-
   // Pad bars with 9:30/15:00 boundaries so the chart's data range spans the full trading day.
   // lightweight-charts constrains setVisibleRange to the data range, so we must extend the data itself.
   if (bars.length > 0) {
@@ -393,6 +381,18 @@ function renderIntradayChart() {
     if (lastTs < fullTo - 120) {
       bars = [...bars, { ...bars[bars.length - 1], date: '15:00', volume: '0' } as Record<string, unknown>]
     }
+  }
+
+  // Compute average price: cumulative (vol * price) / cumulative vol
+  const avgPrices: number[] = []
+  let cumVolPrice = 0, cumVol = 0
+  for (const b of bars) {
+    const c = Number(b.close), v = Number(b.volume)
+    if (c && v) {
+      cumVolPrice += c * v
+      cumVol += v
+    }
+    avgPrices.push(cumVol > 0 ? cumVolPrice / cumVol : c)
   }
 
   // Price line (white in dark, dark blue in light)
