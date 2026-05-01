@@ -48,6 +48,7 @@ watch(watchlistOnly, (val) => {
   const filters = { ...currentFilters.value }
   delete filters.page
   delete filters.page_size
+  delete filters.codes
   handleSearch(filters)
 })
 const quickStrategies = ref<{ name: string; filters: Record<string, unknown> }[]>([])
@@ -77,6 +78,8 @@ async function handleSearch(filters: Record<string, string>) {
   const params: Record<string, string> = { ...filters, page: '1', page_size: '50' }
   if (watchlistOnly.value && watchlist.codes.value.size > 0) {
     params.codes = [...watchlist.codes.value].join(',')
+  } else {
+    delete params.codes
   }
   currentFilters.value = params
   try {
