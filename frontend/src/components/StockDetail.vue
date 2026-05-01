@@ -382,6 +382,21 @@ function renderIntradayChart() {
     avgPrices.push(cumVol > 0 ? cumVolPrice / cumVol : c)
   }
 
+  // Ghost series to anchor the time range to full trading day (9:30–15:00).
+  // Without this, lightweight-charts auto-fits to the data range and ignores setVisibleRange.
+  const firstClose = Number(bars[0].close)
+  const lastClose = Number(bars[bars.length - 1].close)
+  const anchorSeries = intradayChart.addSeries(LineSeries, {
+    color: 'transparent',
+    lineWidth: 1,
+    lastValueVisible: false,
+    priceLineVisible: false,
+  })
+  anchorSeries.setData([
+    { time: fullFrom, value: firstClose },
+    { time: fullTo, value: lastClose },
+  ])
+
   // Price line (white in dark, dark blue in light)
   const priceSeries = intradayChart.addSeries(LineSeries, {
     color: isDark() ? '#ffffff' : '#1e40af',
@@ -428,14 +443,6 @@ function renderIntradayChart() {
       color: curClose >= prevClose ? colors.up : colors.down,
     }
   }))
-
-  // Force full trading day width (9:30–15:00).
-  // Double rAF ensures it fires after the chart's internal auto-fit completes.
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      intradayChart!.timeScale().setVisibleRange({ from: fullFrom, to: fullTo })
-    })
-  })
 
   // Crosshair tooltip
   const tooltipEl = document.createElement('div')
