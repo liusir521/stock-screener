@@ -58,8 +58,10 @@ function saveCurrentConv() {
   const now = Date.now()
   const existing = conversations.value.find(c => c.id === activeId.value)
   if (existing) {
+    const changed = JSON.stringify(existing.messages) !== JSON.stringify(messages.value)
+        || existing.summary !== currentSummary.value
     existing.messages = [...messages.value]
-    existing.updatedAt = now
+    if (changed) existing.updatedAt = now
     existing.summary = currentSummary.value
     if (existing.title === '新对话') {
       const firstUser = messages.value.find(m => m.role === 'user')
