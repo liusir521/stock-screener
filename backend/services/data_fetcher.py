@@ -661,14 +661,21 @@ def _get_limit_pct(market: str, is_st: bool) -> float:
     return 10.0
 
 
-def _is_at_limit(change_pct: float, market: str, is_st: bool, up: bool) -> bool:
-    """Check if a stock is at its daily price limit (up or down).
-    Uses threshold (limit - 0.15) to approximate exact limit price calculation.
-    Counts verified against market data (ZT=119, DT≈39-40).
+def _calc_limit_prices(close: float, change_pct: float, limit_pct: float) -> tuple[float, float]:
+    """Calculate exact limit-up and limit-down prices using adjusted previous close.
+    Derives the adjusted prev_close from change_pct (which Sina computes post-adjustment),
+    then computes limit prices rounded to 分 (2 decimals). This handles corporate actions
+    where the raw prev_close in the DB may differ from the exchange-adjusted reference price.
     """
-    limit = _get_limit_pct(market, is_st)
-    threshold = limit - 0.15
-    return change_pct >= threshold if up else change_pct <= -threshold
+    if change_pct >= 900:  # impossible percentage, guard
+        return (0, 0)
+    adjusted_prev = close / (1 + change_pct / 100) if change_pct != 0 else close
+    if adjusted_prev <= 0:
+        return (0, 0)
+    return (
+        round(adjusted_prev * (1 + limit_pct / 100), 2),
+        round(adjusted_prev * (1 - limit_pct / 100), 2),
+    )
 
 
 def _is_ipo(name: str, change_pct: float) -> bool:
@@ -681,13 +688,17 @@ def _is_ipo(name: str, change_pct: float) -> bool:
 
 
 def _fetch_limit_stats_from_db() -> dict:
-    """Compute limit-up/down stocks from stock_daily table using change_pct thresholds."""
+    """Compute limit-up/down stocks using exact limit price comparison.
+    Derives the exchange-adjusted previous close from change_pct (which
+    accounts for corporate actions), then computes limit prices rounded
+    to 分 and checks whether close reaches them.
+    """
     from database import engine
     import pandas as pd
 
     query = """
         SELECT b.code, b.name, b.market, b.industry, b.is_st,
-               d.change_pct, d.close, d.volume, d.turnover_rate
+               d.close, d.change_pct, d.volume, d.turnover_rate
         FROM stock_basic b
         JOIN stock_daily d ON b.code = d.code
             AND d.date = (SELECT MAX(date) FROM stock_daily WHERE code = b.code)
@@ -698,26 +709,29 @@ def _fetch_limit_stats_from_db() -> dict:
     ipo_mask = df.apply(lambda r: _is_ipo(str(r["name"]), r["change_pct"]), axis=1)
     df = df[~ipo_mask]
 
-    zt_mask = df.apply(lambda r: _is_at_limit(r["change_pct"], r["market"], r["is_st"], up=True), axis=1)
-    dt_mask = df.apply(lambda r: _is_at_limit(r["change_pct"], r["market"], r["is_st"], up=False), axis=1)
-
-    zt_df = df[zt_mask].copy()
-    dt_df = df[dt_mask].copy()
-
     zt_list: list[dict] = []
-    for _, r in zt_df.iterrows():
-        zt_list.append({
-            "code": str(r["code"]), "name": str(r["name"]),
-            "change_pct": float(r["change_pct"]), "industry": str(r.get("industry", "")),
-            "board_count": 0, "seal_volume": 0, "first_seal_time": "",
-        })
-
     dt_list: list[dict] = []
-    for _, r in dt_df.iterrows():
-        dt_list.append({
-            "code": str(r["code"]), "name": str(r["name"]),
-            "change_pct": float(r["change_pct"]), "industry": str(r.get("industry", "")),
-        })
+
+    for _, r in df.iterrows():
+        close = float(r["close"])
+        change_pct = float(r["change_pct"])
+        if close <= 0:
+            continue
+
+        limit_pct = _get_limit_pct(str(r["market"]), bool(r["is_st"]))
+        limit_up, limit_down = _calc_limit_prices(close, change_pct, limit_pct)
+
+        if limit_up > 0 and close >= limit_up:
+            zt_list.append({
+                "code": str(r["code"]), "name": str(r["name"]),
+                "change_pct": change_pct, "industry": str(r.get("industry", "")),
+                "board_count": 0, "seal_volume": 0, "first_seal_time": "",
+            })
+        elif limit_down > 0 and close <= limit_down:
+            dt_list.append({
+                "code": str(r["code"]), "name": str(r["name"]),
+                "change_pct": change_pct, "industry": str(r.get("industry", "")),
+            })
 
     return {"zt_list": zt_list, "dt_list": dt_list}
 
