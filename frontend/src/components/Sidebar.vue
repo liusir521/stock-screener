@@ -18,6 +18,7 @@ const conceptSearch = ref('')
 const conceptOpen = ref(false)
 const allConcepts = ref<{ concept_name: string; stock_count: number }[]>([])
 const selectedConcepts = ref<Set<string>>(new Set())
+const excludeSt = ref(false)
 
 onMounted(async () => {
   try {
@@ -93,7 +94,7 @@ function handleFilterSearch() {
   clearKeyword()
   const params: Record<string, string> = {}
   if (market.value) params.market = market.value
-  params.exclude_st = 'true'
+  if (excludeSt.value) params.exclude_st = 'true'
 
   const addRange = (key: string, range: [number, number]) => {
     params[`${key}_min`] = String(range[0])
@@ -138,8 +139,9 @@ function handleReset() {
   }
   technical.value = { turnover_rate: [0, 20], change_pct: [-10, 10], volume_ratio: [0, 10] }
   selectedConcepts.value = new Set()
+  excludeSt.value = false
   currentFilters.value = {}
-  emit('search', { exclude_st: 'false', page: '1', page_size: '50' })
+  emit('search', { page: '1', page_size: '50' })
 }
 
 defineExpose({ handleReset })
@@ -241,6 +243,10 @@ function handleLoadStrategy(filters: Record<string, string>) {
     <label class="watchlist-toggle">
       <input type="checkbox" :checked="props.watchlistOnly" @change="emit('update:watchlistOnly', ($event.target as HTMLInputElement).checked)" />
       仅看自选
+    </label>
+    <label class="watchlist-toggle">
+      <input type="checkbox" v-model="excludeSt" />
+      排除ST
     </label>
     <button class="search-btn" @click="handleFilterSearch">筛选</button>
     <button class="reset-btn" @click="handleReset">重置</button>
