@@ -27,7 +27,7 @@ def list_stocks(
     volume_ratio_min: float | None = Query(None),
     concept: str | None = Query(None),
     codes: str | None = Query(None),
-    exclude_st: bool = Query(True),
+    exclude_st: bool = Query(False),
     sort_by: str = Query("code"),
     order: str = Query("asc"),
     page: int = Query(1, ge=1),
