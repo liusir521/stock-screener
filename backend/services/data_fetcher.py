@@ -689,9 +689,13 @@ def _is_ipo(name: str, change_pct: float) -> bool:
 
 def _fetch_limit_stats_from_db() -> dict:
     """Compute limit-up/down stocks using exact limit price comparison.
+
     Derives the exchange-adjusted previous close from change_pct (which
-    accounts for corporate actions), then computes limit prices rounded
-    to 分 and checks whether close reaches them.
+    reflects corporate-action adjustments made by the exchange), then
+    computes exact limit prices rounded to 分 and checks whether close
+    reaches them. This is more accurate than using raw prev_close from DB
+    because the exchange adjusts the reference price after dividends,
+    rights issues, etc.
     """
     from database import engine
     import pandas as pd
