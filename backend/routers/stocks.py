@@ -58,7 +58,7 @@ def stock_detail(code: str):
     from database import engine
     from sqlalchemy import text
     import pandas as pd
-    from services.data_fetcher import fetch_kline_sina, fetch_stock_history, fetch_corp_info
+    from services.data_fetcher import fetch_kline_sina, fetch_single_snapshot
 
     basic_query = "SELECT * FROM stock_basic WHERE code = :code"
     with engine.connect() as conn:
@@ -66,42 +66,25 @@ def stock_detail(code: str):
 
     basic_dict = basic.to_dict(orient="records")[0] if len(basic) > 0 else None
 
-    # Enrich basic info with industry and list_date from Sina corp pages
-    if basic_dict and (not basic_dict.get("industry") or not basic_dict.get("list_date")):
-        corp = fetch_corp_info(code)
-        if corp.get("industry"):
-            basic_dict["industry"] = corp["industry"]
-        if corp.get("list_date"):
-            basic_dict["list_date"] = corp["list_date"]
-
-    # Try Sina K-line first, then akshare, then fallback to stock_daily
-    kline_df = fetch_kline_sina(code, days=120)
+    # Fetch K-line (60 days is enough for detail view)
+    kline_df = fetch_kline_sina(code, days=60)
     if kline_df.empty:
-        kline_df = fetch_stock_history(code, days=120)
+        # Fallback to stock_daily only if Sina K-line is empty
+        query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 60"
+        with engine.connect() as conn:
+            kline_df = pd.read_sql_query(query, conn, params={"code": code})
     daily_data = kline_df.where(kline_df.notna(), None).to_dict(orient="records") if not kline_df.empty else []
 
-    if not daily_data:
-        query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 120"
-        with engine.connect() as conn:
-            df = pd.read_sql_query(query, conn, params={"code": code})
-        daily_data = df.where(df.notna(), None).to_dict(orient="records")
-
-    # Enrich with turnover_rate if missing (compute using float_shares from DB)
-    if daily_data and 'turnover_rate' not in daily_data[0] and 'float_shares' not in daily_data[0]:
-        float_shares = 0
+    # Enrich latest row with snapshot fundamentals (PE/PB/ROE/market_cap/turnover) for suspended stocks
+    if daily_data and daily_data[-1].get("pe_ttm") is None:
         try:
-            fs_query = "SELECT float_shares FROM stock_daily WHERE code = :code AND float_shares > 0 ORDER BY date DESC LIMIT 1"
-            with engine.connect() as conn:
-                row = conn.execute(text(fs_query), {"code": code}).fetchone()
-                if row:
-                    float_shares = float(row[0])
+            snap = fetch_single_snapshot(code)
+            latest = daily_data[-1]
+            for k in ("pe_ttm", "pb", "roe", "market_cap", "turnover_rate", "change_pct"):
+                if snap.get(k) is not None:
+                    latest[k] = snap.get(k)
         except Exception:
             pass
-        if float_shares > 0:
-            for d in daily_data:
-                vol = float(d.get("volume") or 0)
-                # turnover_rate(%) = volume(手) * 100 / float_shares(股)
-                d["turnover_rate"] = round(vol * 100 / float_shares, 2)
 
     return {
         "basic": basic_dict,
