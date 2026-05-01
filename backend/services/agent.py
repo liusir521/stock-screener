@@ -57,6 +57,8 @@ def _stream_llm(messages: list[dict], tools: list[dict] | None = None) -> Genera
         "temperature": 0.3,
         "max_tokens": 2048,
         "stream": True,
+        "stream_options": {"include_usage": True},
+        "thinking": {"type": "disabled"},
     }
     if tools:
         body["tools"] = tools
@@ -534,7 +536,7 @@ def run_agent(user_message: str, history: list[dict] | None = None) -> dict:
 
     for _round in range(max_rounds):
         api_url, model, api_key = _api_params()
-        body: dict = {"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 2048}
+        body: dict = {"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 2048, "thinking": {"type": "disabled"}}
         body["tools"] = ALL_TOOLS
         body["tool_choice"] = "auto"
 
