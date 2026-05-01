@@ -857,3 +857,27 @@ def batch_fetch_concepts(top_n: int = 80) -> list[dict]:
     result = [{"code": k, "concept_name": v} for k, vs in code_concepts.items() for v in vs]
     print(f"  Concept mapping: {len(result)} stock-concept pairs for {len(code_concepts)} stocks")
     return result
+
+
+def fetch_stock_news(code: str, limit: int = 15) -> list[dict]:
+    """Fetch recent news articles for a single stock from Eastmoney."""
+    import akshare as ak
+    try:
+        df = ak.stock_news_em(symbol=code, limit=limit)
+        if df is None or df.empty:
+            return []
+        return df.head(limit).where(df.notna(), None).to_dict(orient="records")
+    except Exception:
+        return []
+
+
+def fetch_stock_notices(code: str, limit: int = 10) -> list[dict]:
+    """Fetch recent company announcements (reports) for a single stock from Eastmoney."""
+    import akshare as ak
+    try:
+        df = ak.stock_notice_report(symbol=code)
+        if df is None or df.empty:
+            return []
+        return df.head(limit).where(df.notna(), None).to_dict(orient="records")
+    except Exception:
+        return []
