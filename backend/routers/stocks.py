@@ -102,13 +102,20 @@ def stock_intraday(code: str):
     bars_df = fetch_intraday_sina(code)
     bars: list[dict] = []
 
-    # Only return intraday bars if they are from today (live data).
-    # On holidays/weekends or for suspended stocks, Sina returns stale historical bars.
+    # Only return intraday bars if data is from today or recent (within 4 calendar days).
+    # Live data uses "HH:MM" format; historical data uses "YYYY-MM-DD HH:MM:SS".
+    # This filters out suspended stocks (data weeks old) while showing last trading day
+    # on holidays/weekends.
     if not bars_df.empty:
-        first_date = str(bars_df.iloc[0]["date"])
-        today_str = date.today().strftime("%Y-%m-%d")
-        if today_str in first_date:
+        raw_date = str(bars_df.iloc[0]["date"])
+        is_live = raw_date.count(":") == 1  # "HH:MM" format = live today
+        if is_live:
             bars = bars_df.astype(object).where(bars_df.notna(), None).to_dict(orient="records")
+        else:
+            from datetime import timedelta
+            cutoff = (date.today() - timedelta(days=4)).strftime("%Y-%m-%d")
+            if raw_date[:10] >= cutoff:
+                bars = bars_df.astype(object).where(bars_df.notna(), None).to_dict(orient="records")
 
     # Get prev_close and float_shares from stock_daily, compute turnover_rate
     prev_close = None

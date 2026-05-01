@@ -49,14 +49,16 @@ def seed() -> dict:
                 basic_count += 1
             session.commit()
 
-            # Seed stock_daily — clear today's stale records first, skip suspended
+            # Seed stock_daily — clear today's stale records first
             today = df.iloc[0]["date"]
             session.query(StockDaily).filter(StockDaily.date == today, StockDaily.close == 0).delete()
             daily_count = 0
             skip_suspended = 0
+            suspended_codes = []
             for _, row in df.iterrows():
                 if float(row["close"]) <= 0:
                     skip_suspended += 1
+                    suspended_codes.append(row["code"])
                     continue
                 session.merge(StockDaily(
                     code=row["code"], date=row["date"], close=row["close"],
@@ -73,6 +75,33 @@ def seed() -> dict:
             if skip_suspended:
                 print(f"  Skipped {skip_suspended} suspended stocks (close=0)")
             session.commit()
+
+            # Seed suspended stocks with snapshot data (close=0 but valid PE/PB/ROE/MC)
+            if suspended_codes:
+                print(f"  Fetching snapshot data for {len(suspended_codes)} suspended stocks...")
+                from services.data_fetcher import fetch_single_snapshot
+                seeded_suspended = 0
+                for code in suspended_codes:
+                    try:
+                        snap = fetch_single_snapshot(code)
+                        session.merge(StockDaily(
+                            code=code, date=today,
+                            close=0.0, volume=0.0, turnover_rate=0.0,
+                            pe_ttm=float(snap.get("pe_ttm", 0)) if snap.get("pe_ttm") else 0.0,
+                            pb=float(snap.get("pb", 0)) if snap.get("pb") else 0.0,
+                            roe=float(snap.get("roe", 0)) if snap.get("roe") else 0.0,
+                            revenue_growth_3y=0.0,
+                            ma5=0.0, ma20=0.0, ma60=0.0, macd_signal=0.0,
+                            market_cap=float(snap.get("market_cap", 0)) if snap.get("market_cap") else 0.0,
+                            nmc=0.0, float_shares=0.0,
+                            dividend_yield=0.0,
+                            change_pct=0.0, volume_ratio=0.0,
+                        ))
+                        seeded_suspended += 1
+                    except Exception:
+                        pass
+                session.commit()
+                print(f"  Suspended stocks seeded with snapshot data: {seeded_suspended}")
 
             # Batch-fetch industry info from Sina corporate pages
             codes = list(df["code"].tolist())
