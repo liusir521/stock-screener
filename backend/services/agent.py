@@ -57,8 +57,6 @@ def _stream_llm(messages: list[dict], tools: list[dict] | None = None) -> Genera
         "temperature": 0.3,
         "max_tokens": 2048,
         "stream": True,
-        "stream_options": {"include_usage": True},
-        "thinking": {"type": "disabled"},
     }
     if tools:
         body["tools"] = tools
@@ -484,9 +482,19 @@ def _exec_compare_stocks(args: dict) -> dict:
 def _exec_get_stock_news(args: dict) -> dict:
     from services.data_fetcher import fetch_stock_news, fetch_stock_notices
     code = args["code"]
-    news = fetch_stock_news(code, limit=15)
-    notices = fetch_stock_notices(code, limit=10)
-    return {"code": code, "news_count": len(news), "news": news, "notices_count": len(notices), "notices": notices}
+    news_raw = fetch_stock_news(code, limit=8)
+    notices_raw = fetch_stock_notices(code, limit=5)
+    news = [
+        {"title": str(n.get("新闻标题", ""))[:50], "source": n.get("文章来源", ""),
+         "time": str(n.get("发布时间", ""))[:10]}
+        for n in news_raw
+    ]
+    notices = [
+        {"title": str(n.get("公告标题", ""))[:50], "type": n.get("公告类型", ""),
+         "date": str(n.get("公告日期", ""))}
+        for n in notices_raw
+    ]
+    return {"code": code, "news": news, "notices": notices}
 
 
 def _exec_market_breadth(_args: dict) -> dict:
@@ -526,7 +534,7 @@ def run_agent(user_message: str, history: list[dict] | None = None) -> dict:
 
     for _round in range(max_rounds):
         api_url, model, api_key = _api_params()
-        body: dict = {"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 2048, "thinking": {"type": "disabled"}}
+        body: dict = {"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 2048}
         body["tools"] = ALL_TOOLS
         body["tool_choice"] = "auto"
 

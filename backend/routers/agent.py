@@ -13,6 +13,7 @@ class ChatReq(BaseModel):
 
 @router.post("/agent/chat")
 async def agent_chat(req: ChatReq):
+    import traceback
     from services.agent import run_agent_stream, _load_config
 
     config = _load_config()
@@ -22,8 +23,16 @@ async def agent_chat(req: ChatReq):
     if not req.message or len(req.message) > 2000:
         raise HTTPException(status_code=400, detail="message 不能为空且不能超过2000字")
 
+    def safe_stream():
+        try:
+            yield from run_agent_stream(req.message, req.history)
+        except Exception as e:
+            import json
+            traceback.print_exc()
+            yield f"event: error\ndata: {json.dumps(str(e), ensure_ascii=False)}\n\n"
+
     return StreamingResponse(
-        run_agent_stream(req.message, req.history),
+        safe_stream(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
