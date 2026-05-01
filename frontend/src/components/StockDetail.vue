@@ -322,7 +322,7 @@ function renderCharts() {
 
 function renderIntradayChart() {
   if (intradayChart) { intradayChart.remove(); intradayChart = null }
-  const bars = intradayBars.value
+  let bars = intradayBars.value
   if (!bars.length) return
 
   const el = document.getElementById('intraday-chart-area') as HTMLDivElement | null
@@ -382,20 +382,18 @@ function renderIntradayChart() {
     avgPrices.push(cumVol > 0 ? cumVolPrice / cumVol : c)
   }
 
-  // Ghost series to anchor the time range to full trading day (9:30–15:00).
-  // Without this, lightweight-charts auto-fits to the data range and ignores setVisibleRange.
-  const firstClose = Number(bars[0].close)
-  const lastClose = Number(bars[bars.length - 1].close)
-  const anchorSeries = intradayChart.addSeries(LineSeries, {
-    color: 'transparent',
-    lineWidth: 1,
-    lastValueVisible: false,
-    priceLineVisible: false,
-  })
-  anchorSeries.setData([
-    { time: fullFrom, value: firstClose },
-    { time: fullTo, value: lastClose },
-  ])
+  // Pad bars with 9:30/15:00 boundaries so the chart's data range spans the full trading day.
+  // lightweight-charts constrains setVisibleRange to the data range, so we must extend the data itself.
+  if (bars.length > 0) {
+    const firstTs = toTs(bars[0].date)
+    const lastTs = toTs(bars[bars.length - 1].date)
+    if (firstTs > fullFrom + 120) {
+      bars = [{ ...bars[0], date: '09:30', volume: '0' } as Record<string, unknown>, ...bars]
+    }
+    if (lastTs < fullTo - 120) {
+      bars = [...bars, { ...bars[bars.length - 1], date: '15:00', volume: '0' } as Record<string, unknown>]
+    }
+  }
 
   // Price line (white in dark, dark blue in light)
   const priceSeries = intradayChart.addSeries(LineSeries, {
