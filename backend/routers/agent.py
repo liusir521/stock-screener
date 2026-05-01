@@ -20,7 +20,7 @@ async def agent_chat(req: ChatReq):
     if not config.get("api_key"):
         raise HTTPException(status_code=400, detail="请先在设置中配置 AI API Key")
 
-    if not req.message or len(req.message) > 2000:
+    if not req.message or len(req.message) > 8000:
         raise HTTPException(status_code=400, detail="message 不能为空且不能超过2000字")
 
     print(f"[agent] msg={req.message[:60]} history={len(req.history) if req.history else 0}", flush=True)

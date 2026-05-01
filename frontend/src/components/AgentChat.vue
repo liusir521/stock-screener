@@ -221,7 +221,7 @@ async function triggerSummarize() {
 
   summarizing = true
   try {
-    const lines = toSummarize.map(m => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content.slice(0, 200)}`)
+    const lines = toSummarize.slice(-10).map(m => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content.slice(0, 100)}`)
     const prompt = `请将以下对话压缩为一段100字以内的中文摘要，只保留关键信息（股票代码、指标数值、分析结论等）：\n${lines.join('\n')}`
     const history: { role: string; content: string }[] = [{ role: 'user', content: prompt }]
 
