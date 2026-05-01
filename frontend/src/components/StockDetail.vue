@@ -46,34 +46,40 @@ watch(() => props.code, async (newCode) => {
         ;(data.daily[i] as Record<string, unknown>).change_pct = 0
       }
     }
-    // Merge today's intraday bars into daily K-line data (synthesize daily candle)
+    // Merge today's intraday bars into daily K-line data (synthesize daily candle).
+    // Only synthesize when intraday bars use "HH:MM" format (live today);
+    // on holidays/weekends bars use "YYYY-MM-DD HH:MM:SS" (historical) and synthesis is skipped.
     if (idata.bars && idata.bars.length > 0) {
       const bars = idata.bars
-      const today = new Date().toISOString().split('T')[0]
-      const opens = bars.map(b => Number(b.open ?? b.close)).filter(v => v > 0)
-      const highs = bars.map(b => Number(b.high ?? b.close)).filter(v => v > 0)
-      const lows = bars.map(b => Number(b.low ?? b.close)).filter(v => v > 0)
-      const synth: Record<string, unknown> = {
-        date: today,
-        open: opens[0] ?? Number(bars[0].close),
-        high: Math.max(...highs),
-        low: Math.min(...lows),
-        close: Number(bars[bars.length - 1].close),
-        volume: bars.reduce((s, b) => s + Number(b.volume || 0), 0),
-      }
-      const lastIdx = data.daily.length - 1
-      // If the API already has today's row, compare against the day before; otherwise use last day
-      const refIdx = (lastIdx >= 0 && String(data.daily[lastIdx].date) === today) ? lastIdx - 1 : lastIdx
-      const prevClose = refIdx >= 0 ? Number(data.daily[refIdx].close) : Number(synth.open)
-      synth.change_pct = prevClose > 0 ? ((Number(synth.close) - prevClose) / prevClose) * 100 : 0
-      if (idata.turnover_rate !== null && idata.turnover_rate !== undefined) {
-        synth.turnover_rate = idata.turnover_rate
-      }
-      if (lastIdx >= 0 && String(data.daily[lastIdx].date) === today) {
-        data.daily[lastIdx] = synth
-      } else {
-        data.daily.push(synth)
-        if (data.daily.length > 120) data.daily.shift()
+      const firstDate = String(bars[0].date || '')
+      const isLive = /^\d{2}:\d{2}/.test(firstDate)
+      if (isLive) {
+        const today = new Date().toISOString().split('T')[0]
+        const opens = bars.map(b => Number(b.open ?? b.close)).filter(v => v > 0)
+        const highs = bars.map(b => Number(b.high ?? b.close)).filter(v => v > 0)
+        const lows = bars.map(b => Number(b.low ?? b.close)).filter(v => v > 0)
+        const synth: Record<string, unknown> = {
+          date: today,
+          open: opens[0] ?? Number(bars[0].close),
+          high: Math.max(...highs),
+          low: Math.min(...lows),
+          close: Number(bars[bars.length - 1].close),
+          volume: bars.reduce((s, b) => s + Number(b.volume || 0), 0),
+        }
+        const lastIdx = data.daily.length - 1
+        // If the API already has today's row, compare against the day before; otherwise use last day
+        const refIdx = (lastIdx >= 0 && String(data.daily[lastIdx].date) === today) ? lastIdx - 1 : lastIdx
+        const prevClose = refIdx >= 0 ? Number(data.daily[refIdx].close) : Number(synth.open)
+        synth.change_pct = prevClose > 0 ? ((Number(synth.close) - prevClose) / prevClose) * 100 : 0
+        if (idata.turnover_rate !== null && idata.turnover_rate !== undefined) {
+          synth.turnover_rate = idata.turnover_rate
+        }
+        if (lastIdx >= 0 && String(data.daily[lastIdx].date) === today) {
+          data.daily[lastIdx] = synth
+        } else {
+          data.daily.push(synth)
+          if (data.daily.length > 120) data.daily.shift()
+        }
       }
     }
     // Show newest data first in table

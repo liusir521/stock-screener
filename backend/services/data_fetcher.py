@@ -334,8 +334,9 @@ def fetch_stock_history(code: str, days: int = 60) -> pd.DataFrame:
     from datetime import timedelta
     import akshare as ak
 
-    end_date = datetime.now().strftime("%Y%m%d")
-    start_date = (datetime.now() - timedelta(days=days * 2)).strftime("%Y%m%d")
+    end_date = _last_trading_date()
+    end_dt = datetime.strptime(end_date, "%Y%m%d")
+    start_date = (end_dt - timedelta(days=days * 2)).strftime("%Y%m%d")
     try:
         df = ak.stock_zh_a_hist(symbol=code, period="daily",
                                  start_date=start_date, end_date=end_date,
@@ -360,9 +361,10 @@ def fetch_stock_history_period(code: str, period: str = "weekly", days: int = 12
     from datetime import timedelta
     import akshare as ak
 
-    end_date = datetime.now().strftime("%Y%m%d")
+    end_date = _last_trading_date()
+    end_dt = datetime.strptime(end_date, "%Y%m%d")
     multiplier = 1 if period == "daily" else (5 if period == "weekly" else 21)
-    start_date = (datetime.now() - timedelta(days=days * multiplier * 2)).strftime("%Y%m%d")
+    start_date = (end_dt - timedelta(days=days * multiplier * 2)).strftime("%Y%m%d")
     try:
         df = ak.stock_zh_a_hist(symbol=code, period=period,
                                  start_date=start_date, end_date=end_date,
@@ -731,7 +733,7 @@ def _enrich_with_eastmoney(zt_list: list[dict]) -> list[dict]:
             "Pageindex": "0",
             "pagesize": "200",
             "sort": "fbt:asc",
-            "date": datetime.now().strftime("%Y%m%d"),
+            "date": _last_trading_date(),
         }
         r = req.get(url, params=params, timeout=10)
         data = r.json()
