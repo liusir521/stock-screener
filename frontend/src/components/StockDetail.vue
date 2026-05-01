@@ -442,9 +442,11 @@ function renderIntradayChart() {
     }
   }))
 
-  // Fit to full padded range after all series render
+  // Show all bars (padded data spans 9:30–15:00)
   requestAnimationFrame(() => {
-    intradayChart!.timeScale().fitContent()
+    requestAnimationFrame(() => {
+      intradayChart!.timeScale().setVisibleLogicalRange({ from: 0, to: bars.length - 1 })
+    })
   })
 
   // Crosshair tooltip
