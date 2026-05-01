@@ -359,8 +359,6 @@ function renderIntradayChart() {
       borderColor: colors.grid,
       timeVisible: true,
       tickMarkFormatter: fmtTime,
-      fixLeftEdge: true,
-      fixRightEdge: true,
     },
     localization: { timeFormatter: fmtTime },
     leftPriceScale: { borderColor: colors.grid, visible: true },
@@ -431,9 +429,12 @@ function renderIntradayChart() {
     }
   }))
 
-  // Force full trading day width (9:30–15:00) after all data renders
+  // Force full trading day width (9:30–15:00).
+  // Double rAF ensures it fires after the chart's internal auto-fit completes.
   requestAnimationFrame(() => {
-    intradayChart!.timeScale().setVisibleRange({ from: fullFrom, to: fullTo })
+    requestAnimationFrame(() => {
+      intradayChart!.timeScale().setVisibleRange({ from: fullFrom, to: fullTo })
+    })
   })
 
   // Crosshair tooltip
