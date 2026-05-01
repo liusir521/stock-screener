@@ -49,9 +49,15 @@ def seed() -> dict:
                 basic_count += 1
             session.commit()
 
-            # Seed stock_daily
+            # Seed stock_daily — clear today's stale records first, skip suspended
+            today = df.iloc[0]["date"]
+            session.query(StockDaily).filter(StockDaily.date == today, StockDaily.close == 0).delete()
             daily_count = 0
+            skip_suspended = 0
             for _, row in df.iterrows():
+                if float(row["close"]) <= 0:
+                    skip_suspended += 1
+                    continue
                 session.merge(StockDaily(
                     code=row["code"], date=row["date"], close=row["close"],
                     volume=row["volume"], turnover_rate=row["turnover_rate"],
@@ -64,6 +70,8 @@ def seed() -> dict:
                     change_pct=row["change_pct"], volume_ratio=row["volume_ratio"],
                 ))
                 daily_count += 1
+            if skip_suspended:
+                print(f"  Skipped {skip_suspended} suspended stocks (close=0)")
             session.commit()
 
             # Batch-fetch industry info from Sina corporate pages

@@ -70,10 +70,19 @@ function sortIndicator(key: string): string {
   return props.sortOrder === 'asc' ? ' ▲' : ' ▼'
 }
 
-function fmt(val: unknown, key: string): string {
-  if (val === null || val === undefined) return '-'
+function isSuspended(item: Record<string, unknown>): boolean {
+  const c = Number(item.close)
+  return isNaN(c) || c === 0
+}
+
+function fmt(val: unknown, key: string, item?: Record<string, unknown>): string {
+  if (val === null || val === undefined) {
+    if (item && isSuspended(item) && (key === 'volume' || key === 'close')) return '停牌'
+    return '-'
+  }
   const n = Number(val)
   if (isNaN(n)) return String(val)
+  if (item && isSuspended(item) && key === 'volume') return '停牌'
   if (key === 'roe' || key === 'dividend_yield' || key === 'turnover_rate' || key === 'revenue_growth_3y') return n.toFixed(1) + '%'
   if (key === 'market_cap') return n >= 10000 ? (n / 10000).toFixed(1) + '万亿' : n.toFixed(0)
   if (key === 'pe_ttm' || key === 'pb' || key === 'close') return n.toFixed(2)
@@ -134,7 +143,7 @@ function cellClass(val: unknown, key: string): string {
             <span v-if="col.key === 'favorite'" class="star-btn" :class="{ active: favorites.has(item.code as string) }" @click.stop="emit('toggle-favorite', item.code as string)">
               {{ favorites.has(item.code as string) ? '★' : '☆' }}
             </span>
-            <span v-else :class="[col.key === 'code' ? 'stock-code' : '', cellClass(item[col.key], col.key)]">{{ col.key === 'code' ? item[col.key] : fmt(item[col.key], col.key) }}</span>
+            <span v-else :class="[col.key === 'code' ? 'stock-code' : '', cellClass(item[col.key], col.key)]">{{ col.key === 'code' ? item[col.key] : fmt(item[col.key], col.key, item) }}</span>
           </td>
         </tr>
       </tbody>
