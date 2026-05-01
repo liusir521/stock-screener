@@ -58,11 +58,11 @@ export const api = {
     post<{ status: string }>(`${BASE}/ai-config`, config),
   agentChat: (message: string, history?: { role: string; content: string }[]) =>
     post<AgentChatResponse>(`${BASE}/agent/chat`, { message, history }),
-  agentChatStream: (message: string, history?: { role: string; content: string }[], signal?: AbortSignal) =>
+  agentChatStream: (message: string, history?: { role: string; content: string }[], signal?: AbortSignal, noTools?: boolean) =>
     fetch(`${BASE}/agent/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({ message, history, no_tools: noTools || false }),
       signal,
     }),
 }

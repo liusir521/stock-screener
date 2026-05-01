@@ -225,7 +225,7 @@ async function triggerSummarize() {
     const prompt = `请将以下对话压缩为一段100字以内的中文摘要，直接回复、不要调用任何工具。只保留关键信息：\n${lines.join('\n')}`
     const history: { role: string; content: string }[] = [{ role: 'user', content: prompt }]
 
-    const resp = await api.agentChatStream(prompt, history)
+    const resp = await api.agentChatStream(prompt, history, undefined, true)
     if (!resp.ok) return
     const reader = resp.body!.getReader()
     const decoder = new TextDecoder()

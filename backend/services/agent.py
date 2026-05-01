@@ -597,9 +597,13 @@ def run_agent(user_message: str, history: list[dict] | None = None) -> dict:
     return {"reply": final_reply, "data": collected_data}
 
 
-def run_agent_stream(user_message: str, history: list[dict] | None = None) -> Generator[str, None, None]:
-    """Streaming version: yields SSE-formatted strings."""
-    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+def run_agent_stream(user_message: str, history: list[dict] | None = None, no_tools: bool = False) -> Generator[str, None, None]:
+    """Streaming version: yields SSE-formatted strings. Set no_tools=True to skip function calling."""
+    if no_tools:
+        system = "你是一个有帮助的AI助手。用中文回复，简洁直接。"
+    else:
+        system = SYSTEM_PROMPT
+    messages: list[dict] = [{"role": "system", "content": system}]
     if history:
         for h in history[-20:]:
             messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
@@ -609,7 +613,8 @@ def run_agent_stream(user_message: str, history: list[dict] | None = None) -> Ge
         payload = json.dumps(data, ensure_ascii=False)
         return f"event: {event}\ndata: {payload}\n\n"
 
-    max_rounds = 5
+    tools = None if no_tools else ALL_TOOLS
+    max_rounds = 1 if no_tools else 5
     collected_data: dict = {}
 
     for _round in range(max_rounds):
@@ -617,7 +622,7 @@ def run_agent_stream(user_message: str, history: list[dict] | None = None) -> Ge
         assistant_content = ""
 
         try:
-            for chunk in _stream_llm(messages, ALL_TOOLS):
+            for chunk in _stream_llm(messages, tools):
                 if chunk["type"] == "token":
                     assistant_content += chunk["content"]
                     yield sse("token", chunk["content"])

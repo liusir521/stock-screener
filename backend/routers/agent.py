@@ -9,6 +9,7 @@ router = APIRouter(prefix="/api")
 class ChatReq(BaseModel):
     message: str
     history: list[dict] | None = None
+    no_tools: bool = False
 
 
 @router.post("/agent/chat")
@@ -21,13 +22,13 @@ async def agent_chat(req: ChatReq):
         raise HTTPException(status_code=400, detail="请先在设置中配置 AI API Key")
 
     if not req.message or len(req.message) > 8000:
-        raise HTTPException(status_code=400, detail="message 不能为空且不能超过2000字")
+        raise HTTPException(status_code=400, detail="message 不能为空且不能超过8000字")
 
-    print(f"[agent] msg={req.message[:60]} history={len(req.history) if req.history else 0}", flush=True)
+    print(f"[agent] msg={req.message[:60]} history={len(req.history) if req.history else 0} no_tools={req.no_tools}", flush=True)
 
     def safe_stream():
         try:
-            yield from run_agent_stream(req.message, req.history)
+            yield from run_agent_stream(req.message, req.history, no_tools=req.no_tools)
         except Exception as e:
             traceback.print_exc()
             yield f"event: error\ndata: {json.dumps(str(e), ensure_ascii=False)}\n\n"
