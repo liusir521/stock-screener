@@ -359,6 +359,8 @@ function renderIntradayChart() {
       borderColor: colors.grid,
       timeVisible: true,
       tickMarkFormatter: fmtTime,
+      fixLeftEdge: true,
+      fixRightEdge: true,
     },
     localization: { timeFormatter: fmtTime },
     leftPriceScale: { borderColor: colors.grid, visible: true },
@@ -429,8 +431,10 @@ function renderIntradayChart() {
     }
   }))
 
-  // Force full trading day width (9:30–15:00)
-  intradayChart.timeScale().setVisibleRange({ from: fullFrom, to: fullTo })
+  // Force full trading day width (9:30–15:00) after all data renders
+  requestAnimationFrame(() => {
+    intradayChart!.timeScale().setVisibleRange({ from: fullFrom, to: fullTo })
+  })
 
   // Crosshair tooltip
   const tooltipEl = document.createElement('div')
