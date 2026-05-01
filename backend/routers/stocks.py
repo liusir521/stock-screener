@@ -66,13 +66,14 @@ def stock_detail(code: str):
 
     basic_dict = basic.to_dict(orient="records")[0] if len(basic) > 0 else None
 
-    # Fetch K-line (60 days is enough for detail view)
-    kline_df = fetch_kline_sina(code, days=60)
+    # Fetch K-line (250 days ≈ 1 year for meaningful MA60 and trend analysis)
+    kline_df = fetch_kline_sina(code, days=250)
     if kline_df.empty:
-        # Fallback to stock_daily only if Sina K-line is empty
-        query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 60"
+        query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 250"
         with engine.connect() as conn:
             kline_df = pd.read_sql_query(query, conn, params={"code": code})
+    # Filter out rows with zero/negative close (suspended days)
+    kline_df = kline_df[kline_df["close"] > 0] if not kline_df.empty else kline_df
     daily_data = kline_df.where(kline_df.notna(), None).to_dict(orient="records") if not kline_df.empty else []
 
     # Enrich latest row with snapshot fundamentals (PE/PB/ROE/market_cap/turnover) for suspended stocks
@@ -96,9 +97,18 @@ def stock_detail(code: str):
 def stock_intraday(code: str):
     from database import engine
     from services.data_fetcher import fetch_intraday_sina
+    from datetime import date
 
     bars_df = fetch_intraday_sina(code)
-    bars = bars_df.where(bars_df.notna(), None).to_dict(orient="records") if not bars_df.empty else []
+    bars: list[dict] = []
+
+    # Only return intraday bars if they are from today (live data).
+    # On holidays/weekends or for suspended stocks, Sina returns stale historical bars.
+    if not bars_df.empty:
+        first_date = str(bars_df.iloc[0]["date"])
+        today_str = date.today().strftime("%Y-%m-%d")
+        if today_str in first_date:
+            bars = bars_df.where(bars_df.notna(), None).to_dict(orient="records")
 
     # Get prev_close and float_shares from stock_daily, compute turnover_rate
     prev_close = None
