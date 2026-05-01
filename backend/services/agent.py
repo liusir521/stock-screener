@@ -72,7 +72,9 @@ def _stream_llm(messages: list[dict], tools: list[dict] | None = None) -> Genera
         stream=True,
     )
     if resp.status_code != 200:
-        raise RuntimeError(f"LLM API 错误 ({resp.status_code}): {resp.text[:500]}")
+        err_detail = resp.text[:800]
+        print(f"[LLM] {resp.status_code} error: {err_detail}", flush=True)
+        raise RuntimeError(f"LLM API error ({resp.status_code}): {err_detail}")
 
     # Parse SSE stream
     tool_call_buf: dict[int, dict] = {}  # index -> {id, name, arguments}
