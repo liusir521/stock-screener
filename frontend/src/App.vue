@@ -170,6 +170,7 @@ function handleStockSelect(code: string) {
 }
 
 function handleReset() {
+  currentFilters.value = {}
   watchlistOnly.value = false
   sidebarRef.value?.handleReset()
 }
