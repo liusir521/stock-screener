@@ -14,10 +14,12 @@ import { useWatchlist } from './composables/useWatchlist'
 const activeTab = ref<'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites'>(
   (sessionStorage.getItem('activeTab') as 'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites') || 'stocks'
 )
-watch(activeTab, (val) => {
+watch(activeTab, (val, prev) => {
   sessionStorage.setItem('activeTab', val)
   if (val === 'favorites') {
     watchlistOnly.value = true
+  } else if (prev === 'favorites') {
+    watchlistOnly.value = false
   }
 })
 const isDark = ref(false)
