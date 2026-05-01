@@ -55,7 +55,7 @@ def _stream_llm(messages: list[dict], tools: list[dict] | None = None) -> Genera
         "model": model,
         "messages": messages,
         "temperature": 0.3,
-        "max_tokens": 2048,
+        "max_tokens": 4096,
         "stream": True,
         "stream_options": {"include_usage": True},
         "thinking": {"type": "disabled"},
@@ -538,7 +538,7 @@ def run_agent(user_message: str, history: list[dict] | None = None) -> dict:
 
     for _round in range(max_rounds):
         api_url, model, api_key = _api_params()
-        body: dict = {"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 2048, "thinking": {"type": "disabled"}}
+        body: dict = {"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 4096, "thinking": {"type": "disabled"}}
         body["tools"] = ALL_TOOLS
         body["tool_choice"] = "auto"
 
@@ -587,7 +587,7 @@ def run_agent(user_message: str, history: list[dict] | None = None) -> dict:
             resp = requests.post(
                 f"{api_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 2048},
+                json={"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 4096},
                 timeout=300,
             )
             final_reply = resp.json()["choices"][0]["message"].get("content") or ""
