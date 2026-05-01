@@ -40,6 +40,50 @@ def _classify_market(symbol: str, code: str) -> str:
     return "sh_sz"
 
 
+def _last_trading_date() -> str:
+    """Return the most recent trading date as YYYYMMDD.
+    Detects holidays by checking intraday bar timestamps — on a trading day
+    the bars use HH:MM format (today); on holidays they include full date+time
+    from the previous session. Falls back to K-line daily data for the actual date.
+    """
+    from datetime import timedelta
+
+    today = datetime.now()
+
+    # Weekend: adjust to Friday
+    if today.weekday() == 5:      # Saturday
+        today = today - timedelta(days=1)
+    elif today.weekday() == 6:    # Sunday
+        today = today - timedelta(days=2)
+
+    # Check intraday bars to determine if today is a live trading day.
+    # On trading days, intraday bars use "HH:MM" format (today).
+    # On holidays/weekends, bars use "YYYY-MM-DD HH:MM:SS" from the last session.
+    try:
+        intra_df = fetch_intraday_sina("000001")
+        if not intra_df.empty:
+            sample = str(intra_df.iloc[-1]["date"])
+            # "HH:MM" => live today; "YYYY-MM-DD ..." => historical
+            if sample.startswith("20"):  # full datetime, not live
+                bar_date = sample[:10].replace("-", "")
+                return bar_date
+    except Exception:
+        pass
+
+    # Fallback: use daily K-line for the last completed bar date
+    try:
+        df = fetch_kline_sina("000001", days=1)
+        if not df.empty:
+            kline_str = str(df.iloc[-1]["date"]).replace("-", "")
+            kline_date = datetime.strptime(kline_str, "%Y%m%d")
+            if kline_date < today:
+                return kline_date.strftime("%Y%m%d")
+    except Exception:
+        pass
+
+    return today.strftime("%Y%m%d")
+
+
 def fetch_all_sina_data() -> pd.DataFrame:
     """Fetch all A-share stocks with daily indicators from Sina.
     Returns DataFrame with columns for both stock_basic and stock_daily.
@@ -62,7 +106,7 @@ def fetch_all_sina_data() -> pd.DataFrame:
     if not all_rows:
         return pd.DataFrame()
 
-    today = datetime.now().strftime("%Y%m%d")
+    today = _last_trading_date()
 
     records = []
     for item in all_rows:
