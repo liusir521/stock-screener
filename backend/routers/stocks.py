@@ -77,22 +77,23 @@ def stock_detail(code: str):
     daily_data = kline_df.astype(object).where(kline_df.notna(), None).to_dict(orient="records") if not kline_df.empty else []
 
     # For suspended stocks: fill gap between last K-line date and today with fixed-price rows.
-    # This shows the price was frozen during suspension rather than leaving a blank period.
+    # Only fill weekdays (Mon–Fri), skip weekends and today (today may be a non-trading day).
     if daily_data:
         last_close = float(daily_data[-1]["close"])
         last_date_str = str(daily_data[-1]["date"])
         last_date = pd.to_datetime(last_date_str).date()
-        today = pd.Timestamp.now().date()
-        gap_days = (today - last_date).days
+        yesterday = pd.Timestamp.now().date()
+        gap_days = (yesterday - last_date).days
         if gap_days > 2:
             from datetime import timedelta
             d = last_date + timedelta(days=1)
-            while d <= today:
-                daily_data.append({
-                    "date": d.strftime("%Y-%m-%d"),
-                    "open": last_close, "high": last_close, "low": last_close,
-                    "close": last_close, "volume": 0.0,
-                })
+            while d < yesterday:  # up to yesterday only, exclude today
+                if d.weekday() < 5:  # Mon=0 ... Fri=4
+                    daily_data.append({
+                        "date": d.strftime("%Y-%m-%d"),
+                        "open": last_close, "high": last_close, "low": last_close,
+                        "close": last_close, "volume": 0.0,
+                    })
                 d += timedelta(days=1)
         # Re-apply snapshot enrichment on the (possibly new) latest row
         if daily_data[-1].get("pe_ttm") is None:
