@@ -66,17 +66,34 @@ def stock_detail(code: str):
 
     basic_dict = basic.to_dict(orient="records")[0] if len(basic) > 0 else None
 
-    # Fetch K-line (250 days ≈ 1 year for meaningful MA60 and trend analysis)
-    kline_df = fetch_kline_sina(code, days=250)
+    # Fetch K-line (120 trading days ≈ 6 months)
+    kline_df = fetch_kline_sina(code, days=120)
     if kline_df.empty:
-        query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 250"
+        query = "SELECT * FROM stock_daily WHERE code = :code ORDER BY date DESC LIMIT 120"
         with engine.connect() as conn:
             kline_df = pd.read_sql_query(query, conn, params={"code": code})
     # Filter out rows with zero/negative close (suspended days)
     kline_df = kline_df[kline_df["close"] > 0] if not kline_df.empty else kline_df
     daily_data = kline_df.astype(object).where(kline_df.notna(), None).to_dict(orient="records") if not kline_df.empty else []
 
-    # For suspended stocks: fill gap between last K-line date and today with fixed-price rows.
+    # Compute turnover_rate for all rows from volume and float_shares
+    if daily_data:
+        float_shares = 0.0
+        try:
+            fs_query = "SELECT float_shares FROM stock_daily WHERE code = :code AND float_shares > 0 ORDER BY date DESC LIMIT 1"
+            with engine.connect() as conn:
+                row = conn.execute(text(fs_query), {"code": code}).fetchone()
+                if row:
+                    float_shares = float(row[0])
+        except Exception:
+            pass
+        if float_shares > 0:
+            for d in daily_data:
+                vol = float(d.get("volume") or 0)
+                if vol > 0:
+                    d["turnover_rate"] = round(vol * 100 / float_shares, 2)
+
+    # For suspended stocks: fill gap between last K-line date and yesterday with fixed-price rows.
     # Only fill weekdays (Mon–Fri), skip weekends and today (today may be a non-trading day).
     if daily_data:
         last_close = float(daily_data[-1]["close"])
@@ -95,12 +112,12 @@ def stock_detail(code: str):
                         "close": last_close, "volume": 0.0,
                     })
                 d += timedelta(days=1)
-        # Re-apply snapshot enrichment on the (possibly new) latest row
+        # Enrich latest row with snapshot fundamentals (PE/PB/ROE/market_cap)
         if daily_data[-1].get("pe_ttm") is None:
             try:
                 snap = fetch_single_snapshot(code)
                 latest = daily_data[-1]
-                for k in ("pe_ttm", "pb", "roe", "market_cap", "turnover_rate", "change_pct"):
+                for k in ("pe_ttm", "pb", "roe", "market_cap", "change_pct"):
                     if snap.get(k) is not None:
                         latest[k] = snap.get(k)
             except Exception:
