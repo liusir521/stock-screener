@@ -328,15 +328,21 @@ function renderIntradayChart() {
   const el = document.getElementById('intraday-chart-area') as HTMLDivElement | null
   if (!el) return
 
-  // Convert datetime strings to Unix timestamps (seconds)
-  const toTs = (s: unknown) => Math.floor(new Date(String(s)).getTime() / 1000) as UTCTimestamp
-
   // Full trading day boundaries (9:30 - 15:00)
   const now = new Date()
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30, 0)
   const dayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 15, 0, 0)
   const fullFrom = Math.floor(dayStart.getTime() / 1000) as UTCTimestamp
   const fullTo   = Math.floor(dayEnd.getTime() / 1000) as UTCTimestamp
+
+  // Convert datetime strings to Unix timestamps (seconds)
+  // Sina intraday data returns "HH:MM" format — prepend today's date
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+  const toTs = (s: unknown) => {
+    const raw = String(s)
+    const ds = /^\d{2}:\d{2}/.test(raw) ? `${todayStr}T${raw}:00` : raw
+    return Math.floor(new Date(ds).getTime() / 1000) as UTCTimestamp
+  }
 
   const fmtTime = (ts: Time) => {
     const unix = ts as number
