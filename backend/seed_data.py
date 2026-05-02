@@ -215,6 +215,15 @@ def seed() -> dict:
 
             session.close()
 
+            # Check alerts after data refresh
+            try:
+                from routers.alerts import check_all_alerts
+                triggered = check_all_alerts()
+                if triggered:
+                    print(f"  Alerts triggered: {triggered} alerts")
+            except Exception:
+                pass  # alert check failure is non-fatal
+
             _refresh_status["basic_count"] = basic_count
             _refresh_status["daily_count"] = daily_count
             _refresh_status["last_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

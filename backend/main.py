@@ -36,11 +36,13 @@ from routers.stocks import router as stocks_router
 from routers.strategies import router as strategies_router
 from routers.ai_config import router as ai_config_router
 from routers.agent import router as agent_router
+from routers.alerts import router as alerts_router
 
 app.include_router(stocks_router)
 app.include_router(strategies_router)
 app.include_router(ai_config_router)
 app.include_router(agent_router)
+app.include_router(alerts_router)
 
 
 @app.get("/api/health")

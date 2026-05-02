@@ -115,6 +115,11 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     if chg_max is not None:
         result = result[result["change_pct"] <= chg_max]
 
+    # Turnover rate
+    turnover_min = filters.get("turnover_rate_min")
+    if turnover_min is not None:
+        result = result[result["turnover_rate"] >= turnover_min]
+
     # Volume ratio
     vol_min = filters.get("volume_ratio_min")
     if vol_min is not None:
