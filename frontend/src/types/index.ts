@@ -59,3 +59,17 @@ export interface AgentChatResponse {
   reply: string
   data?: Record<string, unknown>
 }
+
+export interface AlertCondition {
+  pe_max?: number; pe_min?: number; pb_max?: number; pb_min?: number
+  roe_min?: number; market_cap_max?: number; market_cap_min?: number
+  change_pct_min?: number; change_pct_max?: number; volume_ratio_min?: number
+  dividend_yield_min?: number; revenue_growth_min?: number; turnover_rate_min?: number
+}
+
+export interface Alert {
+  id: string; name: string; enabled: boolean
+  conditions: AlertCondition
+  triggered: boolean; triggered_stocks: StockItem[]
+  last_triggered_at: string | null; created_at: string
+}

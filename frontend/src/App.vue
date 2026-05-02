@@ -9,11 +9,12 @@ import StrategyDashboard from './components/StrategyDashboard.vue'
 import AiSettings from './components/AiSettings.vue'
 import AgentChat from './components/AgentChat.vue'
 import DailyReport from './components/DailyReport.vue'
+import AlertManager from './components/AlertManager.vue'
 import { api } from './api'
 import { useWatchlist } from './composables/useWatchlist'
 
-const activeTab = ref<'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites' | 'report'>(
-  (sessionStorage.getItem('activeTab') as 'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites' | 'report') || 'stocks'
+const activeTab = ref<'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites' | 'report' | 'alerts'>(
+  (sessionStorage.getItem('activeTab') as 'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites' | 'report' | 'alerts') || 'stocks'
 )
 watch(activeTab, (val, prev) => {
   sessionStorage.setItem('activeTab', val)
@@ -205,11 +206,11 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
       </div>
       <div class="tab-bar">
         <button
-          v-for="t in (['agent', 'stocks', 'favorites', 'strategies', 'sectors', 'limit', 'report'] as const)"
+          v-for="t in (['agent', 'stocks', 'favorites', 'strategies', 'sectors', 'limit', 'report', 'alerts'] as const)"
           :key="t"
           :class="['tab-btn', { active: activeTab === t }]"
           @click="activeTab = t"
-        >{{ { agent: 'AI 选股', stocks: '股票筛选', favorites: '自选', strategies: '策略', sectors: '板块排名', limit: '涨跌停板', report: '日报' }[t] }}</button>
+        >{{ { agent: 'AI 选股', stocks: '股票筛选', favorites: '自选', strategies: '策略', sectors: '板块排名', limit: '涨跌停板', report: '日报', alerts: '预警' }[t] }}</button>
       </div>
       <div v-if="activeTab === 'stocks' || activeTab === 'favorites'" class="strategy-chips">
         <span class="strategy-chips-label">快捷策略:</span>
@@ -232,6 +233,7 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
       <SectorRanking v-else-if="activeTab === 'sectors'" @select-stock="handleStockSelect" />
       <LimitStats v-else-if="activeTab === 'limit'" @select-stock="handleStockFromLimit" />
       <DailyReport v-else-if="activeTab === 'report'" />
+      <AlertManager v-else-if="activeTab === 'alerts'" />
     </main>
     <AiSettings v-if="showAiSettings" @close="showAiSettings = false" />
     <StockDetail :code="selectedCode" @close="selectedCode = null" />

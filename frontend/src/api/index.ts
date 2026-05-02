@@ -1,4 +1,4 @@
-import type { AiConfig, AgentChatResponse } from '../types'
+import type { AiConfig, AgentChatResponse, Alert } from '../types'
 
 const BASE = '/api'
 
@@ -17,6 +17,16 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<T>
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+  return res.json()
+}
+
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -66,4 +76,11 @@ export const api = {
       signal,
     }),
   getDailyReport: () => get<{ report: string; date: string; generated_at: string }>(`${BASE}/daily-report`),
+  getAlerts: () => get<{ alerts: Alert[] }>(`${BASE}/alerts`),
+  createAlert: (name: string, conditions: Record<string, number>) =>
+    post<Alert>(`${BASE}/alerts`, { name, conditions }),
+  updateAlert: (id: string, data: Record<string, unknown>) =>
+    put<Alert>(`${BASE}/alerts/${id}`, data),
+  deleteAlert: (id: string) => del<{ status: string; id: string }>(`${BASE}/alerts/${id}`),
+  checkAlerts: () => post<{ triggered: number }>(`${BASE}/alerts/check`, {}),
 }
