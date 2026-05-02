@@ -65,4 +65,5 @@ export const api = {
       body: JSON.stringify({ message, history, no_tools: noTools || false }),
       signal,
     }),
+  getDailyReport: () => get<{ report: string; date: string; generated_at: string }>(`${BASE}/daily-report`),
 }

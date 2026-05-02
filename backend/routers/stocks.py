@@ -286,3 +286,109 @@ def stock_financials(code: str):
     """个股财务三表摘要。"""
     from services.financials import fetch_financial_summary
     return fetch_financial_summary(code)
+
+
+@router.get("/daily-report")
+def daily_report():
+    """Generate AI daily market report."""
+    import requests
+    from datetime import datetime, date
+    from services.data_fetcher import fetch_limit_stats, fetch_sector_ranking
+    from services.factor import rank_stocks
+
+    # 1. Market breadth
+    limits = fetch_limit_stats()
+    zt_count = limits.get("zt_count", len(limits.get("zt_list", [])))
+    dt_count = limits.get("dt_count", len(limits.get("dt_list", [])))
+
+    # 2. Sector ranking (top 5)
+    sectors = fetch_sector_ranking()
+    top5_sectors = sectors[:5]
+
+    # 3. Factor-ranked stocks (top 5)
+    top5_stocks = rank_stocks(top_n=5)
+
+    # 4. Build markdown tables
+    sector_lines = [
+        "| 板块 | 涨跌幅 | 领涨股 | 股票数 |",
+        "|------|--------|--------|--------|",
+    ]
+    for s in top5_sectors:
+        sector_lines.append(
+            f"| {s['name']} | {s['change_pct']}% | {s['lead_stock']}({s['lead_stock_change']}%) | {s['stock_count']} |"
+        )
+    sector_table = "\n".join(sector_lines)
+
+    factor_lines = [
+        "| 代码 | 名称 | 综合得分 | 估值 | 成长 | 质量 | 动量 |",
+        "|------|------|----------|------|------|------|------|",
+    ]
+    for s in top5_stocks:
+        f = s["factors"]
+        factor_lines.append(
+            f"| {s['code']} | {s['name']} | {s['composite']} | {f['valuation']['score']} | {f['growth']['score']} | {f['quality']['score']} | {f['momentum']['score']} |"
+        )
+    factor_table = "\n".join(factor_lines)
+
+    # 5. Build prompt
+    prompt = f"""请根据以下A股市场数据生成一份今日市场日报（500字以内，Markdown格式）：
+
+## 市场情绪
+涨停{zt_count}只，跌停{dt_count}只
+
+## 板块TOP5
+{sector_table}
+
+## 因子排名TOP5
+{factor_table}
+
+请包含：市场概况(1-2句)、情绪解读、板块分析、个股关注，用通俗易懂的语言。"""
+
+    today_str = date.today().strftime("%Y-%m-%d")
+    generated_at = datetime.now().isoformat()
+
+    # 6. Call AI agent (non-streaming, one-shot)
+    try:
+        from services.agent import _api_params
+        api_url, model, api_key = _api_params()
+
+        body = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 2048,
+        }
+
+        resp = requests.post(
+            f"{api_url}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=body,
+            timeout=120,
+        )
+
+        if resp.status_code == 200:
+            report = resp.json()["choices"][0]["message"]["content"]
+        else:
+            raise RuntimeError(f"API error: {resp.status_code}")
+    except Exception:
+        # Fallback: stats-only summary
+        mood = "偏暖" if zt_count > dt_count * 2 else ("偏冷" if dt_count > zt_count * 2 else "中性")
+        report = f"""## 今日市场日报 ({today_str})
+
+> AI 报告生成失败，以下为基础数据统计。
+
+### 市场情绪
+- 涨停: **{zt_count}** 只
+- 跌停: **{dt_count}** 只
+- 市场情绪: **{mood}**
+
+### 板块 TOP5
+{sector_table}
+
+### 因子排名 TOP5
+{factor_table}
+
+---
+*数据来源: Sina Finance, 因子模型 v1.0*"""
+
+    return {"report": report, "date": today_str, "generated_at": generated_at}
