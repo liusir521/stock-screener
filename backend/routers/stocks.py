@@ -251,3 +251,38 @@ async def refresh_data():
 def refresh_status():
     from seed_data import get_refresh_status
     return get_refresh_status()
+
+
+@router.get("/dragon-tiger")
+def dragon_tiger(date: str | None = Query(None)):
+    """龙虎榜数据：上榜股票的买卖席位和净买入。"""
+    from services.fund_flow import fetch_dragon_tiger
+    return fetch_dragon_tiger(date)
+
+
+@router.get("/northbound-flow")
+def northbound_flow(days: int = Query(20, ge=1, le=60)):
+    """北向资金净流入历史。"""
+    from services.fund_flow import fetch_northbound_flow
+    return fetch_northbound_flow(days)
+
+
+@router.get("/margin-stats")
+def margin_stats():
+    """全市场融资融券余额统计。"""
+    from services.fund_flow import fetch_margin_stats
+    return fetch_margin_stats()
+
+
+@router.get("/stocks/{code}/northbound")
+def stock_northbound(code: str):
+    """单只股票北向资金持股数据。"""
+    from services.fund_flow import fetch_northbound_holdings
+    return fetch_northbound_holdings(code)
+
+
+@router.get("/stocks/{code}/financials")
+def stock_financials(code: str):
+    """个股财务三表摘要。"""
+    from services.financials import fetch_financial_summary
+    return fetch_financial_summary(code)

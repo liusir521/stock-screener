@@ -398,6 +398,67 @@ def recognize_patterns(code: str) -> dict:
     }
 
 
+# ─── Tool: get_dragon_tiger ───
+
+@mcp.tool()
+def get_dragon_tiger(date: str | None = None) -> dict:
+    """获取龙虎榜数据：上榜股票的买入/卖出/净买入金额和上榜原因。
+
+    Args:
+        date: 日期 YYYY-MM-DD，默认最新交易日
+    """
+    from services.fund_flow import fetch_dragon_tiger
+    return fetch_dragon_tiger(date)
+
+
+# ─── Tool: get_northbound_flow ───
+
+@mcp.tool()
+def get_northbound_flow(days: int = 20) -> dict:
+    """获取北向资金（沪港通+深港通）净流入历史，反映外资动向。
+
+    Args:
+        days: 查询天数，默认20
+    """
+    from services.fund_flow import fetch_northbound_flow
+    return fetch_northbound_flow(days)
+
+
+# ─── Tool: get_margin_stats ───
+
+@mcp.tool()
+def get_margin_stats() -> dict:
+    """获取全市场融资融券余额统计（融资余额+融券余额+两融总额）。"""
+    from services.fund_flow import fetch_margin_stats
+    return fetch_margin_stats()
+
+
+# ─── Tool: get_northbound_holdings ───
+
+@mcp.tool()
+def get_northbound_holdings(code: str) -> dict:
+    """获取单只股票的北向资金持股数据（持股数量/比例/市值）。
+
+    Args:
+        code: 6位股票代码，如 600519
+    """
+    from services.fund_flow import fetch_northbound_holdings
+    return fetch_northbound_holdings(code)
+
+
+# ─── Tool: get_financials ───
+
+@mcp.tool()
+def get_financials(code: str) -> dict:
+    """获取个股财务三表摘要：营收、净利润、资产、负债、现金流、毛利率、净利率、ROE、EPS等。
+
+    Args:
+        code: 6位股票代码，如 600519
+    """
+    from services.financials import fetch_financial_summary
+    return fetch_financial_summary(code)
+
+
 # ─── Entry point ───
 
 if __name__ == "__main__":
