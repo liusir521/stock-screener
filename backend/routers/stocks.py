@@ -93,18 +93,32 @@ def stock_detail(code: str):
                 if vol > 0:
                     d["turnover_rate"] = round(vol * 100 / float_shares, 2)
 
-    # For suspended stocks: fill gap between last K-line date and yesterday with fixed-price rows.
-    # Only fill weekdays (Mon–Fri), skip weekends and today (today may be a non-trading day).
+    # For suspended stocks: fill gap between last K-line date and the last known trading day
+    # with fixed-price rows. Only fill weekdays (Mon–Fri), and cap at the most recent
+    # trading date in the database (to avoid filling holidays like May Day).
     if daily_data:
         last_close = float(daily_data[-1]["close"])
         last_date_str = str(daily_data[-1]["date"])
         last_date = pd.to_datetime(last_date_str).date()
         yesterday = pd.Timestamp.now().date()
-        gap_days = (yesterday - last_date).days
+
+        # Find the last actual trading day from the database (any stock with close > 0)
+        last_trading = None
+        try:
+            max_date_query = "SELECT MAX(date) FROM stock_daily WHERE close > 0"
+            with engine.connect() as conn:
+                row = conn.execute(text(max_date_query)).fetchone()
+                if row and row[0]:
+                    last_trading = pd.to_datetime(row[0]).date()
+        except Exception:
+            pass
+
+        upper_bound = min(yesterday, last_trading) if last_trading else yesterday
+        gap_days = (upper_bound - last_date).days
         if gap_days > 2:
             from datetime import timedelta
             d = last_date + timedelta(days=1)
-            while d < yesterday:  # up to yesterday only, exclude today
+            while d < upper_bound:
                 if d.weekday() < 5:  # Mon=0 ... Fri=4
                     daily_data.append({
                         "date": d.strftime("%Y-%m-%d"),
