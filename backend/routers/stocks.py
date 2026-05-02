@@ -223,6 +223,17 @@ def limit_stats():
             "zt_list": stats["zt_list"], "dt_list": stats["dt_list"]}
 
 
+@router.get("/indicators")
+def list_indicators():
+    """列出所有注册的技术指标及其参数。"""
+    from services.indicator import get_indicator_registry
+    registry = get_indicator_registry()
+    return {
+        "indicators": list(registry.values()),
+        "count": len(registry),
+    }
+
+
 @router.get("/markets")
 def list_markets():
     return {

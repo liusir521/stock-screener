@@ -1,6 +1,28 @@
 """Technical indicator computation — pure functions, zero dependencies."""
 
+_indicator_registry: dict[str, dict] = {}
 
+
+def register_indicator(name: str, category: str, description: str, params: dict | None = None):
+    """Decorator to register a technical indicator with metadata."""
+    def decorator(func):
+        _indicator_registry[name] = {
+            "name": name,
+            "category": category,  # 'trend', 'momentum', 'volatility', 'volume'
+            "description": description,
+            "params": params or {},
+            "function": func.__name__,
+        }
+        return func
+    return decorator
+
+
+def get_indicator_registry() -> dict:
+    """Return all registered indicators with metadata."""
+    return dict(_indicator_registry)
+
+
+@register_indicator("sma", "trend", "简单移动平均线", {"period": "int"})
 def sma(data: list[float], period: int) -> list[float | None]:
     """Simple Moving Average."""
     if len(data) < period:
@@ -17,6 +39,7 @@ def sma(data: list[float], period: int) -> list[float | None]:
     return result
 
 
+@register_indicator("ema", "trend", "指数移动平均线", {"period": "int"})
 def ema(data: list[float], period: int) -> list[float | None]:
     """Exponential Moving Average. k = 2 / (period + 1)."""
     if len(data) < period:
@@ -30,6 +53,7 @@ def ema(data: list[float], period: int) -> list[float | None]:
     return result
 
 
+@register_indicator("macd", "trend", "MACD指标（DIF/DEA/柱）", {"fast": "int", "slow": "int", "signal": "int"})
 def macd(closes: list[float], fast: int = 12, slow: int = 26, signal: int = 9) -> dict[str, list[float | None]]:
     """MACD indicator. Returns {dif, dea, bar}."""
     ema_fast = ema(closes, fast)
@@ -57,6 +81,7 @@ def macd(closes: list[float], fast: int = 12, slow: int = 26, signal: int = 9) -
     return {"dif": dif, "dea": dea_adj, "bar": bar}
 
 
+@register_indicator("rsi", "momentum", "相对强弱指数", {"period": "int"})
 def rsi(closes: list[float], period: int = 14) -> list[float | None]:
     """Relative Strength Index (Wilder's smoothing)."""
     if len(closes) < period + 1:
@@ -84,6 +109,7 @@ def rsi(closes: list[float], period: int = 14) -> list[float | None]:
     return result
 
 
+@register_indicator("kdj", "momentum", "KDJ随机指标", {"n": "int", "m1": "int", "m2": "int"})
 def kdj(
     highs: list[float], lows: list[float], closes: list[float],
     n: int = 9, m1: int = 3, m2: int = 3,
@@ -114,6 +140,7 @@ def kdj(
     return {"k": k_vals, "d": d_vals, "j": j_vals}
 
 
+@register_indicator("bollinger", "volatility", "布林带（上轨/中轨/下轨）", {"period": "int", "std_dev": "float"})
 def bollinger(closes: list[float], period: int = 20, std_dev: float = 2.0) -> dict[str, list[float | None]]:
     """Bollinger Bands. Returns {upper, middle, lower}."""
     n = len(closes)

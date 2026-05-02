@@ -322,6 +322,15 @@ def resource_stock_daily(code: str) -> str:
     )
 
 
+@mcp.resource("stock://indicators")
+def resource_indicators() -> str:
+    """可用的技术指标列表（JSON格式）。"""
+    import json
+    from services.indicator import get_indicator_registry
+    registry = get_indicator_registry()
+    return json.dumps(list(registry.values()), ensure_ascii=False)
+
+
 # ─── Tool: factor_score ───
 
 @mcp.tool()
