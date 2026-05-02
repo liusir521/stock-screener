@@ -292,7 +292,7 @@ function mountChart(container: HTMLElement, chartData: Record<string, unknown>) 
   // Markers (e.g. MACD cross signals)
   const markers = chartData.markers as Array<Record<string, unknown>> | undefined
   if (markers && markers.length > 0) {
-    candleSeries.setMarkers(markers.map((m: Record<string, unknown>) => ({
+    ;(candleSeries as any).setMarkers(markers.map((m: Record<string, unknown>) => ({
       time: m.time as string,
       position: (m.position as 'aboveBar' | 'belowBar' | 'inBar') || 'aboveBar',
       color: (m.color as string) || '#ef4444',
