@@ -322,6 +322,82 @@ def resource_stock_daily(code: str) -> str:
     )
 
 
+# ─── Tool: factor_score ───
+
+@mcp.tool()
+def factor_score(code: str) -> dict:
+    """对单只股票进行多因子评分（估值/成长/质量/动量四维），返回综合得分和分项得分。
+
+    Args:
+        code: 6位股票代码，如 600519
+    """
+    from services.factor import score_stock
+    return score_stock(code)
+
+
+# ─── Tool: factor_rank ───
+
+@mcp.tool()
+def factor_rank(
+    market: str | None = None,
+    industry: str | None = None,
+    exclude_st: bool = True,
+    top_n: int = 20,
+) -> dict:
+    """按多因子综合得分排名，返回Top N股票。
+
+    Args:
+        market: 市场过滤，可选 sh_sz/chinext/star/bse
+        industry: 行业过滤，如 '白酒'
+        exclude_st: 是否排除ST股
+        top_n: 返回数量，默认20
+    """
+    from services.factor import rank_stocks
+    results = rank_stocks(market=market, industry=industry, exclude_st=exclude_st, top_n=top_n)
+    return {"count": len(results), "ranking": results}
+
+
+# ─── Tool: recognize_patterns ───
+
+@mcp.tool()
+def recognize_patterns(code: str) -> dict:
+    """识别股票K线形态：双重底/双重顶/头肩底/头肩顶/上升三角形/下降三角形，以及支撑压力位。
+
+    Args:
+        code: 6位股票代码，如 600519
+    """
+    from services.data_fetcher import fetch_stock_history_period
+    from services.pattern import detect_patterns, find_support_resistance
+
+    basic_df = _query_df("SELECT * FROM stock_basic WHERE code = :code", {"code": code})
+    name = str(basic_df.iloc[0]["name"]) if not basic_df.empty else code
+
+    kline_df = fetch_stock_history_period(code, period="daily", days=120)
+    if kline_df.empty:
+        kline_df = _query_df(
+            "SELECT * FROM stock_daily WHERE code = :code AND close > 0 ORDER BY date DESC LIMIT 120",
+            {"code": code},
+        )
+    if kline_df.empty:
+        return {"code": code, "name": name, "error": "无K线数据"}
+
+    highs = kline_df["high"].tolist()
+    lows = kline_df["low"].tolist()
+    closes = kline_df["close"].tolist()
+    volumes = kline_df["volume"].tolist() if "volume" in kline_df.columns else None
+
+    patterns = detect_patterns(highs, lows, closes, volumes)
+    sr = find_support_resistance(highs, lows, closes)
+
+    return {
+        "code": code,
+        "name": name,
+        "patterns": patterns,
+        "support_resistance": sr,
+        "data_points": len(closes),
+    }
+
+
 # ─── Entry point ───
 
 if __name__ == "__main__":
