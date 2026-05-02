@@ -2,14 +2,41 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
 
 
+class ConnectionManager:
+    """Manage WebSocket connections and broadcast messages to all active clients."""
+
+    def __init__(self):
+        self.active: list[WebSocket] = []
+        self.loop: asyncio.AbstractEventLoop | None = None
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.active.append(ws)
+
+    def disconnect(self, ws: WebSocket):
+        if ws in self.active:
+            self.active.remove(ws)
+
+    async def broadcast(self, data: dict):
+        for ws in self.active[:]:
+            try:
+                await ws.send_json(data)
+            except Exception:
+                self.disconnect(ws)
+
+
+manager = ConnectionManager()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    manager.loop = asyncio.get_running_loop()
     init_db()
     # Auto-fetch data on first startup (when DB is empty)
     from database import engine
@@ -31,6 +58,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    await manager.connect(ws)
+    try:
+        # Send initial status on connect
+        from seed_data import get_refresh_status
+        await ws.send_json({"type": "status", "data": get_refresh_status()})
+        while True:
+            # Keep connection alive, wait for any message
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(ws)
+
 
 from routers.stocks import router as stocks_router
 from routers.strategies import router as strategies_router

@@ -83,4 +83,5 @@ export const api = {
     put<Alert>(`${BASE}/alerts/${id}`, data),
   deleteAlert: (id: string) => del<{ status: string; id: string }>(`${BASE}/alerts/${id}`),
   checkAlerts: () => post<{ triggered: number }>(`${BASE}/alerts/check`, {}),
+  getRefreshStatus: () => get<{ running: boolean; last_error: string; last_time: string; basic_count: number; daily_count: number }>(`${BASE}/refresh/status`),
 }

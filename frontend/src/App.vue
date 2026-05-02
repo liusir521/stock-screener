@@ -12,6 +12,7 @@ import DailyReport from './components/DailyReport.vue'
 import AlertManager from './components/AlertManager.vue'
 import { api } from './api'
 import { useWatchlist } from './composables/useWatchlist'
+import { useWebSocket } from './composables/useWebSocket'
 
 const activeTab = ref<'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites' | 'report' | 'alerts'>(
   (sessionStorage.getItem('activeTab') as 'agent' | 'stocks' | 'sectors' | 'limit' | 'strategies' | 'favorites' | 'report' | 'alerts') || 'stocks'
@@ -38,6 +39,8 @@ onMounted(() => {
   document.documentElement.classList.toggle('dark', isDark.value)
   handleSearch({})
   loadQuickStrategies()
+  // Connect WebSocket for real-time updates
+  wsConnect()
 })
 
 const sidebarRef = ref<InstanceType<typeof Sidebar>>()
@@ -136,6 +139,34 @@ function handleSortChange(field: string) {
 const refreshing = ref(false)
 const showAiSettings = ref(false)
 
+// WebSocket real-time connection
+const { connected, lastMessage, connect: wsConnect } = useWebSocket()
+const toastMessage = ref('')
+const toastType = ref<'info' | 'warning'>('info')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+
+function showToast(msg: string, type: 'info' | 'warning' = 'info') {
+  toastMessage.value = msg
+  toastType.value = type
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMessage.value = ''
+  }, 4000)
+}
+
+watch(lastMessage, (msg) => {
+  if (!msg) return
+  if (msg.type === 'refresh_done') {
+    showToast('数据刷新完成')
+    handleSearch({})
+  } else if (msg.type === 'alert_triggered') {
+    const count = msg.data?.count || 0
+    showToast(`预警触发: ${count} 条`, 'warning')
+  } else if (msg.type === 'refresh_error') {
+    showToast('数据刷新失败', 'warning')
+  }
+})
+
 async function handleRefresh() {
   if (refreshing.value) return
   refreshing.value = true
@@ -194,6 +225,9 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
     <main class="main-content">
       <div class="top-bar">
         <span class="app-title">A股筛选器</span>
+        <span v-if="connected" class="realtime-badge" title="实时连接中">
+          <span class="realtime-dot"></span>实时
+        </span>
         <div class="top-bar-actions">
           <button class="refresh-btn" :disabled="refreshing" @click="handleRefresh">
             {{ refreshing ? '刷新中...' : '刷新数据' }}
@@ -237,6 +271,11 @@ function handleApplyStrategy(filters: Record<string, unknown>) {
     </main>
     <AiSettings v-if="showAiSettings" @close="showAiSettings = false" />
     <StockDetail :code="selectedCode" @close="selectedCode = null" />
+    <Transition name="toast-fade">
+      <div v-if="toastMessage" :class="['toast', toastType === 'warning' ? 'toast-warning' : 'toast-info']">
+        {{ toastMessage }}
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -366,4 +405,41 @@ body {
 .strategy-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 .reset-chip { border-style: dashed; color: var(--text-muted); }
 .reset-chip:hover { border-color: var(--text-muted); color: var(--text-primary); background: var(--bg-hover); }
+
+/* Real-time connection badge */
+.realtime-badge {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 500; color: var(--green);
+  margin-left: 8px;
+}
+.realtime-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Toast notification */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  padding: 10px 20px; border-radius: var(--radius);
+  font-size: 13px; font-weight: 500; z-index: 9999;
+  box-shadow: 0 4px 16px var(--shadow-lg);
+  pointer-events: none;
+}
+.toast-info {
+  background: var(--accent); color: white;
+}
+.toast-warning {
+  background: #f59e0b; color: white;
+}
+
+/* Toast fade transition */
+.toast-fade-enter-active { transition: all 0.3s ease-out; }
+.toast-fade-leave-active { transition: all 0.5s ease-in; }
+.toast-fade-enter-from { opacity: 0; transform: translateY(16px); }
+.toast-fade-leave-to { opacity: 0; transform: translateY(-8px); }
 </style>

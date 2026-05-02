@@ -1,4 +1,5 @@
 """Data seeding: pull data from Sina and populate SQLite tables."""
+import asyncio
 import threading
 import traceback
 
@@ -14,6 +15,17 @@ def get_refresh_status() -> dict:
     return dict(_refresh_status)
 
 
+def _broadcast(data: dict):
+    """Send a message to all connected WebSocket clients. Non-blocking, safe to call from any thread."""
+    try:
+        from main import manager
+        if manager.loop is None:
+            return
+        asyncio.run_coroutine_threadsafe(manager.broadcast(data), manager.loop)
+    except Exception:
+        pass  # broadcast failure is non-fatal
+
+
 def seed() -> dict:
     """Run data refresh. Returns status dict. Thread-safe (only one refresh at a time)."""
     if _refresh_lock.locked():
@@ -23,6 +35,7 @@ def seed() -> dict:
             from datetime import datetime
             _refresh_status["running"] = True
             _refresh_status["last_error"] = ""
+            _broadcast({"type": "refresh_start"})
             init_db()
             session = SessionLocal()
 
@@ -221,6 +234,7 @@ def seed() -> dict:
                 triggered = check_all_alerts()
                 if triggered:
                     print(f"  Alerts triggered: {triggered} alerts")
+                    _broadcast({"type": "alert_triggered", "data": {"count": triggered}})
             except Exception:
                 pass  # alert check failure is non-fatal
 
@@ -228,10 +242,13 @@ def seed() -> dict:
             _refresh_status["daily_count"] = daily_count
             _refresh_status["last_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             _refresh_status["running"] = False
+            status = get_refresh_status()
+            _broadcast({"type": "refresh_done", "data": status})
             return {"status": "ok", "basic_count": basic_count, "daily_count": daily_count}
         except Exception:
             _refresh_status["last_error"] = traceback.format_exc()
             _refresh_status["running"] = False
+            _broadcast({"type": "refresh_error", "data": {"error": str(traceback.format_exc())}})
             return {"status": "error", "reason": _refresh_status["last_error"]}
 
 
