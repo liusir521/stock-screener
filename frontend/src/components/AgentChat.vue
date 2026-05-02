@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted, computed } from 'vue'
+import { ref, nextTick, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { api } from '../api'
+import { createChart, CandlestickSeries, HistogramSeries, type IChartApi } from 'lightweight-charts'
 import type { AgentMessage } from '../types'
 
 const emit = defineEmits<{ 'select-stock': [code: string] }>()
@@ -28,6 +29,10 @@ const loading = ref(false)
 const error = ref('')
 const chatBody = ref<HTMLDivElement>()
 let abortController: AbortController | null = null
+
+// ── Inline chart instances ──
+const inlineCharts: IChartApi[] = []
+let chartThemeObserver: MutationObserver | null = null
 
 // ── Conversation management ──
 const conversations = ref<Conversation[]>([])
@@ -101,6 +106,7 @@ function switchConversation(id: string) {
   }
   error.value = ''
   scrollToBottom()
+  nextTick(() => renderCharts())
 }
 
 function deleteConversation(id: string) {
@@ -150,6 +156,14 @@ onMounted(() => {
     currentSummary.value = ''
   }
   messages.value = messages.value.slice(-MAX_MSGS)
+  nextTick(() => renderCharts())
+  chartThemeObserver = new MutationObserver(() => updateAllChartThemes())
+  chartThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+
+onBeforeUnmount(() => {
+  destroyAllCharts()
+  if (chartThemeObserver) { chartThemeObserver.disconnect(); chartThemeObserver = null }
 })
 
 function scrollToBottom() {
@@ -162,6 +176,197 @@ function scrollToBottom() {
 
 function renderMarkdown(text: string): string {
   return md.render(text)
+}
+
+// ── Inline chart rendering ──
+function isDarkMode() {
+  return document.documentElement.classList.contains('dark')
+}
+
+function inlineChartColors() {
+  const dark = isDarkMode()
+  return {
+    bg: dark ? '#0f172a' : '#ffffff',
+    text: dark ? '#94a3b8' : '#64748b',
+    grid: dark ? '#1e293b' : '#e2e8f0',
+    border: dark ? '#334155' : '#cbd5e1',
+    up: '#ef4444',
+    down: '#22c55e',
+  }
+}
+
+function destroyAllCharts() {
+  for (const c of inlineCharts) {
+    try { c.remove() } catch { /* already removed */ }
+  }
+  inlineCharts.length = 0
+}
+
+function updateAllChartThemes() {
+  const colors = inlineChartColors()
+  const opts = {
+    layout: { background: { color: colors.bg }, textColor: colors.text },
+    grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
+    timeScale: { borderColor: colors.grid },
+    leftPriceScale: { borderColor: colors.grid },
+    rightPriceScale: { borderColor: colors.grid },
+  }
+  for (const c of inlineCharts) {
+    try { c.applyOptions(opts) } catch { /* ignore */ }
+  }
+}
+
+function mountChart(container: HTMLElement, chartData: Record<string, unknown>) {
+  const colors = inlineChartColors()
+  const width = container.clientWidth || 400
+
+  const chart = createChart(container, {
+    width,
+    height: 300,
+    layout: {
+      background: { color: colors.bg },
+      textColor: colors.text,
+    },
+    grid: {
+      vertLines: { color: colors.grid },
+      horzLines: { color: colors.grid },
+    },
+    timeScale: {
+      borderColor: colors.grid,
+      timeVisible: true,
+    },
+    leftPriceScale: {
+      borderColor: colors.grid,
+    },
+    rightPriceScale: {
+      visible: false,
+    },
+  })
+
+  // Remove TradingView branding link
+  container.querySelectorAll('a').forEach(el => {
+    if (el.href && el.href.includes('tradingview')) el.remove()
+  })
+
+  const data = (chartData.data as Array<Record<string, unknown>>) || []
+  if (data.length === 0) return
+
+  // Candlestick series
+  const candleSeries = chart.addSeries(CandlestickSeries, {
+    upColor: colors.up,
+    downColor: colors.down,
+    borderUpColor: colors.up,
+    borderDownColor: colors.down,
+    wickUpColor: colors.up,
+    wickDownColor: colors.down,
+  })
+
+  candleSeries.setData(data.map((d: Record<string, unknown>) => ({
+    time: d.time as string,
+    open: Number(d.open),
+    high: Number(d.high),
+    low: Number(d.low),
+    close: Number(d.close),
+  })))
+
+  // Volume histogram series
+  const volumeData = data.filter((d: Record<string, unknown>) => d.volume !== undefined && d.volume !== null)
+  if (volumeData.length > 0) {
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: 'volume' },
+      priceScaleId: '',
+    })
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.85, bottom: 0 },
+    })
+    volumeSeries.setData(volumeData.map((d: Record<string, unknown>) => {
+      const open = Number(d.open), close = Number(d.close)
+      return {
+        time: d.time as string,
+        value: Number(d.volume),
+        color: close >= open ? colors.up : colors.down,
+      }
+    }))
+  }
+
+  // Markers (e.g. MACD cross signals)
+  const markers = chartData.markers as Array<Record<string, unknown>> | undefined
+  if (markers && markers.length > 0) {
+    candleSeries.setMarkers(markers.map((m: Record<string, unknown>) => ({
+      time: m.time as string,
+      position: (m.position as 'aboveBar' | 'belowBar' | 'inBar') || 'aboveBar',
+      color: (m.color as string) || '#ef4444',
+      shape: (m.shape as 'circle' | 'square' | 'arrowUp' | 'arrowDown') || 'arrowDown',
+      text: (m.text as string) || '',
+    })))
+  }
+
+  // Title overlay
+  const title = chartData.title as string | undefined
+  if (title) {
+    const titleEl = document.createElement('div')
+    titleEl.textContent = title
+    Object.assign(titleEl.style, {
+      position: 'absolute',
+      top: '4px',
+      left: '12px',
+      fontSize: '12px',
+      fontWeight: '600',
+      color: colors.text,
+      fontFamily: 'inherit',
+      zIndex: '10',
+      pointerEvents: 'none',
+    })
+    container.style.position = 'relative'
+    container.appendChild(titleEl)
+  }
+
+  // Fit content to view
+  chart.timeScale().fitContent()
+
+  // ResizeObserver
+  const ro = new ResizeObserver(() => {
+    const w = container.clientWidth
+    if (w > 0) chart.applyOptions({ width: w })
+  })
+  ro.observe(container)
+
+  // Store for cleanup and theme updates
+  inlineCharts.push(chart)
+}
+
+function renderCharts() {
+  if (!chatBody.value) return
+
+  // Destroy existing chart instances before re-scanning
+  destroyAllCharts()
+
+  const codeBlocks = chatBody.value.querySelectorAll('code.language-chart')
+  codeBlocks.forEach((codeEl) => {
+    const preEl = codeEl.parentElement
+    if (!preEl || preEl.tagName !== 'PRE') return
+
+    const jsonText = codeEl.textContent?.trim()
+    if (!jsonText) return
+
+    let chartData: Record<string, unknown>
+    try {
+      chartData = JSON.parse(jsonText)
+    } catch {
+      // Malformed JSON — leave as plain text
+      return
+    }
+
+    // Replace the <pre> block with a chart container
+    const container = document.createElement('div')
+    container.className = 'inline-chart-container'
+    preEl.replaceWith(container)
+
+    // Defer chart mount to next frame so the container has layout
+    requestAnimationFrame(() => {
+      mountChart(container, chartData)
+    })
+  })
 }
 
 function handleStockClick(event: MouseEvent) {
@@ -345,6 +550,7 @@ async function send() {
       }
     }
     scrollToBottom()
+    nextTick(() => renderCharts())
   } catch (e: unknown) {
     if (e instanceof DOMException && e.name === 'AbortError') {
       if (!messages.value[placeholderIdx].content.trim()) {
@@ -671,4 +877,19 @@ watch(messages, () => scrollToBottom(), { deep: true })
 }
 .ctx-menu-item:hover { background: var(--accent-light); color: var(--accent); }
 .ctx-icon { font-size: 12px; width: 16px; text-align: center; }
+
+/* Inline chart */
+.inline-chart-container {
+  width: 100%;
+  height: 300px;
+  margin: 8px 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.chat-content :deep(.inline-chart-container) {
+  width: 100%;
+  height: 300px;
+}
 </style>
